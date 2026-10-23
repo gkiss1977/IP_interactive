@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Multi-Object Pinhole Camera & Ray Tracing Optics Simulation</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        .tab-btn.active {
+            border-bottom: 2px solid #6366f1;
+            color: #818cf8;
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 overflow-hidden h-screen w-screen flex flex-col md:flex-row">
+
+    <!-- Control Panel / Sidebar -->
+    <div class="w-full md:w-96 lg:w-[420px] bg-gray-900 border-r border-gray-800 flex flex-col z-10 flex-shrink-0 h-1/2 md:h-full overflow-hidden">
+        
+        <!-- App Title Header -->
+        <div class="p-3.5 border-b border-gray-800 flex items-center justify-between bg-gray-900/90 backdrop-blur">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg">
+                    <i class="fa-solid fa-camera-retro text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm md:text-base text-white leading-tight">Pinhole Camera Lab</h1>
+                    <p class="text-[11px] text-gray-400">Multi-Object & Light Ray Optics</p>
+                </div>
+            </div>
+            <button id="reset-btn" class="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2.5 py-1.5 rounded-md transition flex items-center gap-1.5 border border-gray-700">
+                <i class="fa-solid fa-rotate-left"></i> Reset Scene
+            </button>
+        </div>
+
+        <!-- Tab Navigation Bar -->
+        <div class="flex border-b border-gray-800 bg-gray-950/60 text-xs font-medium text-gray-400">
+            <button class="tab-btn active flex-1 py-2.5 text-center transition flex items-center justify-center gap-1.5" data-tab="tab-objects">
+                <i class="fa-solid fa-cubes text-indigo-400"></i> Objects
+            </button>
+            <button class="tab-btn flex-1 py-2.5 text-center transition flex items-center justify-center gap-1.5" data-tab="tab-lights">
+                <i class="fa-solid fa-lightbulb text-amber-400"></i> Lights
+            </button>
+            <button class="tab-btn flex-1 py-2.5 text-center transition flex items-center justify-center gap-1.5" data-tab="tab-camera">
+                <i class="fa-solid fa-sliders text-emerald-400"></i> Optics
+            </button>
+            <button class="tab-btn flex-1 py-2.5 text-center transition flex items-center justify-center gap-1.5" data-tab="tab-presets">
+                <i class="fa-solid fa-wand-magic-sparkles text-purple-400"></i> Presets
+            </button>
+        </div>
+
+        <!-- Tab Contents Scroll Area -->
+        <div class="p-4 space-y-5 flex-1 overflow-y-auto text-xs">
+
+            <!-- TAB 1: OBJECTS MANAGER -->
+            <div id="tab-objects" class="tab-content space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5 text-[11px]">
+                        <i class="fa-solid fa-cubes"></i> Scene Objects (<span id="object-count">0</span>)
+                    </h2>
+                    <div class="flex gap-1.5">
+                        <select id="add-object-type" class="bg-gray-800 border border-gray-700 text-xs text-white rounded px-2 py-1 focus:outline-none">
+                            <option value="tree">Tree</option>
+                            <option value="house">House</option>
+                            <option value="candle">Candle</option>
+                            <option value="letter">Letter "F"</option>
+                            <option value="sphere">Sphere</option>
+                            <option value="cylinder">Cylinder</option>
+                        </select>
+                        <button id="add-object-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded text-xs transition flex items-center gap-1 font-medium">
+                            <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Object List -->
+                <div id="objects-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Dynamic Items Populated Here -->
+                </div>
+
+                <!-- Selected Object Properties Inspector -->
+                <div id="object-inspector" class="bg-gray-950/80 p-3 rounded-lg border border-gray-800 space-y-3 hidden">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                        <span class="font-semibold text-indigo-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-sliders"></i> <span id="inspect-obj-title">Edit Object</span>
+                        </span>
+                        <button id="delete-selected-obj" class="text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded bg-red-950/40 border border-red-800/40 transition">
+                            <i class="fa-solid fa-trash"></i> Remove
+                        </button>
+                    </div>
+
+                    <!-- Transform Controls -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">X Pos (Dist)</label>
+                            <input type="number" id="obj-pos-x" step="0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Y Pos (Height)</label>
+                            <input type="number" id="obj-pos-y" step="0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Z Pos (Lateral)</label>
+                            <input type="number" id="obj-pos-z" step="0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Scale</label>
+                            <input type="range" id="obj-scale" min="0.5" max="3.0" step="0.1" value="1.0" class="w-full accent-indigo-500 bg-gray-800 rounded h-1.5 cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Rotation Y</label>
+                            <input type="range" id="obj-rotation" min="0" max="360" step="5" value="0" class="w-full accent-indigo-500 bg-gray-800 rounded h-1.5 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] text-gray-400 block mb-0.5">Color Accent</label>
+                        <input type="color" id="obj-color" value="#3b82f6" class="w-full h-7 bg-gray-800 border border-gray-700 rounded cursor-pointer p-0.5">
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: LIGHT SOURCES MANAGER -->
+            <div id="tab-lights" class="tab-content space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 text-[11px]">
+                        <i class="fa-solid fa-lightbulb"></i> Point Light Sources (<span id="light-count">0</span>)
+                    </h2>
+                    <button id="add-light-btn" class="bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded text-xs transition flex items-center gap-1 font-medium">
+                        <i class="fa-solid fa-plus"></i> Add Light
+                    </button>
+                </div>
+
+                <!-- Light Sources List -->
+                <div id="lights-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Dynamic Lights -->
+                </div>
+
+                <!-- Light Source Inspector -->
+                <div id="light-inspector" class="bg-gray-950/80 p-3 rounded-lg border border-gray-800 space-y-3 hidden">
+                    <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                        <span class="font-semibold text-amber-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-sliders"></i> <span id="inspect-light-title">Edit Light</span>
+                        </span>
+                        <button id="delete-selected-light" class="text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded bg-red-950/40 border border-red-800/40 transition">
+                            <i class="fa-solid fa-trash"></i> Remove
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">X Pos</label>
+                            <input type="number" id="light-pos-x" step="0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Y Pos</label>
+                            <input type="number" id="light-pos-y" step="0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Z Pos</label>
+                            <input type="number" id="light-pos-z" step="0.5" class="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Intensity</label>
+                            <input type="range" id="light-intensity" min="0.2" max="3.0" step="0.1" value="1.0" class="w-full accent-amber-500 bg-gray-800 rounded h-1.5 cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-gray-400 block mb-0.5">Light Color</label>
+                            <input type="color" id="light-color" value="#ffffff" class="w-full h-7 bg-gray-800 border border-gray-700 rounded cursor-pointer p-0.5">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: OPTICS & CAMERA CONTROLS -->
+            <div id="tab-camera" class="tab-content space-y-4 hidden">
+                <h2 class="font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
+                    <i class="fa-solid fa-sliders"></i> Camera Obscura Optics
+                </h2>
+
+                <!-- Focal Length / Box Depth -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-300">Focal Depth ($d_i$)</span>
+                        <span id="val-focal" class="font-mono text-emerald-400 font-medium">4.0 m</span>
+                    </div>
+                    <input type="range" id="param-focal" min="1.5" max="8.0" step="0.2" value="4.0" class="w-full accent-emerald-500 bg-gray-800 rounded h-1.5 cursor-pointer">
+                </div>
+
+                <!-- Aperture Diameter -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-300">Pinhole Diameter ($D$)</span>
+                        <span id="val-aperture" class="font-mono text-emerald-400 font-medium">0.20 m</span>
+                    </div>
+                    <input type="range" id="param-aperture" min="0.05" max="0.6" step="0.05" value="0.2" class="w-full accent-emerald-500 bg-gray-800 rounded h-1.5 cursor-pointer">
+                    <p class="text-[10px] text-gray-400 mt-1">Smaller = Sharp & Dim. Larger = Bright & Blur/Scatter.</p>
+                </div>
+
+                <hr class="border-gray-800">
+
+                <h2 class="font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5 text-[11px]">
+                    <i class="fa-solid fa-eye"></i> Light Ray Paths
+                </h2>
+
+                <div>
+                    <label class="text-gray-300 block mb-1">Ray Visualization Mode</label>
+                    <select id="ray-mode" class="w-full bg-gray-800 border border-gray-700 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none">
+                        <option value="selected">Selected Object Rays Only</option>
+                        <option value="all">All Objects Key Rays</option>
+                        <option value="light_to_object">Light-to-Object Reflection Rays</option>
+                        <option value="none">Hide All Rays</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-300">Translucent Camera Walls</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-box-transparent" checked class="sr-only peer">
+                        <div class="w-8 h-4 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-300">Screen View Overlay</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-overlay" checked class="sr-only peer">
+                        <div class="w-8 h-4 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- TAB 4: PRESETS -->
+            <div id="tab-presets" class="tab-content space-y-3 hidden">
+                <h2 class="font-semibold uppercase tracking-wider text-purple-400 flex items-center gap-1.5 text-[11px]">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Preset Scenes
+                </h2>
+                <div class="grid grid-cols-1 gap-2">
+                    <button class="preset-btn bg-gray-800 hover:bg-gray-700/80 border border-gray-700/70 p-2.5 rounded-lg text-left transition flex items-center justify-between" data-preset="forest">
+                        <div>
+                            <div class="font-medium text-white flex items-center gap-1.5"><i class="fa-solid fa-tree text-emerald-400"></i> Forest & Cottage</div>
+                            <div class="text-[10px] text-gray-400">Multiple trees, house, and warm sunlight</div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-gray-500 text-xs"></i>
+                    </button>
+                    <button class="preset-btn bg-gray-800 hover:bg-gray-700/80 border border-gray-700/70 p-2.5 rounded-lg text-left transition flex items-center justify-between" data-preset="colorful_shapes">
+                        <div>
+                            <div class="font-medium text-white flex items-center gap-1.5"><i class="fa-solid fa-icons text-blue-400"></i> Colored Geometric Shapes</div>
+                            <div class="text-[10px] text-gray-400">Sphere, cylinder, and letter with dual colored lights</div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-gray-500 text-xs"></i>
+                    </button>
+                    <button class="preset-btn bg-gray-800 hover:bg-gray-700/80 border border-gray-700/70 p-2.5 rounded-lg text-left transition flex items-center justify-between" data-preset="candles">
+                        <div>
+                            <div class="font-medium text-white flex items-center gap-1.5"><i class="fa-solid fa-fire text-amber-400"></i> Night Candlelight</div>
+                            <div class="text-[10px] text-gray-400">Candles emitting light directly through pinhole</div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-gray-500 text-xs"></i>
+                    </button>
+                </div>
+            </div>
+
+            <hr class="border-gray-800">
+
+            <!-- Real-time Multi-Object Optics Stats -->
+            <div class="bg-gray-950 p-3 rounded-lg border border-gray-800 space-y-2">
+                <div class="text-[11px] font-semibold text-gray-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-calculator text-indigo-400"></i> Real-time Optics Analytics
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="bg-gray-900 p-2 rounded border border-gray-800">
+                        <span class="text-gray-400 block text-[10px]">Avg Distance ($d_o$)</span>
+                        <span id="calc-dist" class="font-mono text-indigo-300 font-medium">12.0 m</span>
+                    </div>
+                    <div class="bg-gray-900 p-2 rounded border border-gray-800">
+                        <span class="text-gray-400 block text-[10px]">Avg Magnification ($M$)</span>
+                        <span id="calc-mag" class="font-mono text-indigo-300 font-medium">-0.33x</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main 3D Viewport Area -->
+    <div class="relative flex-1 bg-gray-950 h-1/2 md:h-full w-full overflow-hidden">
+        
+        <!-- Canvas Container -->
+        <div id="canvas-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+        <!-- 2D Image Screen Overlay (Simulating Back Projection Glass View) -->
+        <div id="screen-overlay" class="absolute top-4 right-4 bg-gray-900/90 border border-gray-700/80 backdrop-blur-md rounded-xl p-3 shadow-2xl z-20 pointer-events-none transition-opacity duration-300 w-44 md:w-56">
+            <div class="text-[11px] font-semibold text-gray-300 mb-2 flex items-center justify-between">
+                <span><i class="fa-solid fa-display text-emerald-400 mr-1"></i> Sensor / Rear Screen</span>
+                <span class="text-[9px] bg-red-900/50 text-red-300 px-1.5 py-0.5 rounded border border-red-700/50 uppercase font-mono">180° Inverted</span>
+            </div>
+            <div class="relative w-full aspect-square bg-black/90 rounded-lg border border-gray-800 overflow-hidden flex items-center justify-center">
+                <!-- Grid overlay for screen canvas -->
+                <div class="absolute inset-0 bg-[radial-gradient(#374151_1px,transparent_1px)] [background-size:12px_12px] opacity-30"></div>
+                <!-- 2D Canvas for preview -->
+                <canvas id="overlay-canvas" class="w-full h-full relative z-10"></canvas>
+            </div>
+            <div class="text-[9px] text-gray-400 text-center mt-1.5">
+                Renders all objects in front of camera
+            </div>
+        </div>
+
+        <!-- On-Screen Instructions Overlay -->
+        <div class="absolute bottom-4 left-4 pointer-events-none hidden sm:block bg-gray-900/70 backdrop-blur border border-gray-800 px-3 py-2 rounded-lg text-xs text-gray-400">
+            <span class="font-medium text-gray-200"><i class="fa-solid fa-arrows-spin mr-1"></i> Navigation:</span>
+            Rotate: Left Click + Drag | Pan: Right Click + Drag | Zoom: Scroll
+        </div>
+    </div>
+
+    <script>
+        // Global Simulation State
+        const state = {
+            focalLength: 4.0,
+            apertureSize: 0.2,
+            rayMode: 'selected', // 'selected', 'all', 'light_to_object', 'none'
+            boxTransparent: true,
+            showOverlay: true,
+            selectedObjId: null,
+            selectedLightId: null,
+            objects: [],
+            lights: []
+        };
+
+        let nextObjId = 1;
+        let nextLightId = 1;
+
+        // DOM Elements
+        const container = document.getElementById('canvas-container');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+
+        // Inputs & UI Outputs
+        const elFocal = document.getElementById('param-focal');
+        const elAperture = document.getElementById('param-aperture');
+        const elRayMode = document.getElementById('ray-mode');
+        const elToggleBoxTransparent = document.getElementById('toggle-box-transparent');
+        const elToggleOverlay = document.getElementById('toggle-overlay');
+        const elResetBtn = document.getElementById('reset-btn');
+
+        const txtFocal = document.getElementById('val-focal');
+        const txtAperture = document.getElementById('val-aperture');
+        const calcDist = document.getElementById('calc-dist');
+        const calcMag = document.getElementById('calc-mag');
+
+        const objectsList = document.getElementById('objects-list');
+        const lightsList = document.getElementById('lights-list');
+        const objectInspector = document.getElementById('object-inspector');
+        const lightInspector = document.getElementById('light-inspector');
+        const screenOverlay = document.getElementById('screen-overlay');
+
+        // Three.js Scene Setup Variables
+        let scene, camera, renderer, controls;
+        let cameraBoxGroup, raysGroup, objectsGroup, lightsGroup;
+        let groundGlassMesh, pinholeFrontMesh, pinholeHoleMesh;
+        let projectionTexture, projectionMaterial, projectionCanvas, projectionCtx;
+        let threeLights = []; // Stores Three.js Light & Gizmo objects
+
+        function initThree() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x030712);
+            scene.fog = new THREE.FogExp2(0x030712, 0.012);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(14, 10, 20);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.1;
+            controls.target.set(0, 1.5, 0);
+
+            // Ambient Light (Soft base fill)
+            const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+            scene.add(ambient);
+
+            // Grid
+            const grid = new THREE.GridHelper(60, 60, 0x374151, 0x1f2937);
+            grid.position.y = -0.01;
+            scene.add(grid);
+
+            // Scene Groups
+            objectsGroup = new THREE.Group();
+            lightsGroup = new THREE.Group();
+            cameraBoxGroup = new THREE.Group();
+            raysGroup = new THREE.Group();
+
+            scene.add(objectsGroup);
+            scene.add(lightsGroup);
+            scene.add(cameraBoxGroup);
+            scene.add(raysGroup);
+
+            // Projection Canvas (Screen sensor)
+            projectionCanvas = document.createElement('canvas');
+            projectionCanvas.width = 512;
+            projectionCanvas.height = 512;
+            projectionCtx = projectionCanvas.getContext('2d');
+            projectionTexture = new THREE.CanvasTexture(projectionCanvas);
+
+            // Setup Default Preset Scene
+            loadPreset('forest');
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            setupUIEventListeners();
+            setupTabNavigation();
+        }
+
+        function createObjectGeometry(type, scale = 1.0, colorHex = "#3b82f6") {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: new THREE.Color(colorHex), 
+                roughness: 0.5, 
+                metalness: 0.2 
+            });
+
+            if (type === 'tree') {
+                const trunkGeo = new THREE.CylinderGeometry(0.15 * scale, 0.25 * scale, 0.8 * scale, 12);
+                const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                trunk.position.y = 0.4 * scale;
+                trunk.castShadow = true;
+                group.add(trunk);
+
+                const foliageMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(colorHex), roughness: 0.6, flatShading: true });
+                for (let i = 0; i < 3; i++) {
+                    const cone = new THREE.Mesh(new THREE.ConeGeometry((0.9 - i * 0.2) * scale, 1.0 * scale, 10), foliageMat);
+                    cone.position.y = (0.9 + i * 0.6) * scale;
+                    cone.castShadow = true;
+                    group.add(cone);
+                }
+            } else if (type === 'house') {
+                const base = new THREE.Mesh(new THREE.BoxGeometry(1.6 * scale, 1.2 * scale, 1.6 * scale), mat);
+                base.position.y = 0.6 * scale;
+                base.castShadow = true;
+                group.add(base);
+
+                const roofMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+                const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4 * scale, 1.0 * scale, 4), roofMat);
+                roof.rotation.y = Math.PI / 4;
+                roof.position.y = 1.7 * scale;
+                roof.castShadow = true;
+                group.add(roof);
+            } else if (type === 'candle') {
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.25 * scale, 1.6 * scale, 16), new THREE.MeshStandardMaterial({ color: 0xf3f4f6 }));
+                body.position.y = 0.8 * scale;
+                group.add(body);
+
+                const flame = new THREE.Mesh(new THREE.ConeGeometry(0.12 * scale, 0.35 * scale, 12), new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
+                flame.position.y = 1.8 * scale;
+                group.add(flame);
+            } else if (type === 'letter') {
+                const stem = new THREE.Mesh(new THREE.BoxGeometry(0.3 * scale, 2.0 * scale, 0.3 * scale), mat);
+                stem.position.y = 1.0 * scale;
+                group.add(stem);
+
+                const topBar = new THREE.Mesh(new THREE.BoxGeometry(0.3 * scale, 0.3 * scale, 1.0 * scale), mat);
+                topBar.position.set(0, 1.85 * scale, 0.35 * scale);
+                group.add(topBar);
+
+                const midBar = new THREE.Mesh(new THREE.BoxGeometry(0.3 * scale, 0.25 * scale, 0.7 * scale), mat);
+                midBar.position.set(0, 1.15 * scale, 0.2 * scale);
+                group.add(midBar);
+            } else if (type === 'sphere') {
+                const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.8 * scale, 24, 24), mat);
+                sphere.position.y = 0.8 * scale;
+                sphere.castShadow = true;
+                group.add(sphere);
+            } else if (type === 'cylinder') {
+                const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.6 * scale, 0.6 * scale, 1.6 * scale, 24), mat);
+                cyl.position.y = 0.8 * scale;
+                cyl.castShadow = true;
+                group.add(cyl);
+            }
+
+            return group;
+        }
+
+        function buildCameraBox() {
+            while (cameraBoxGroup.children.length > 0) {
+                cameraBoxGroup.remove(cameraBoxGroup.children[0]);
+            }
+
+            const boxWidth = 3.8;
+            const boxHeight = 3.8;
+            const boxDepth = state.focalLength;
+
+            // Front Plate with Pinhole
+            const frontPlateShape = new THREE.Shape();
+            frontPlateShape.moveTo(-boxWidth/2, -boxHeight/2);
+            frontPlateShape.lineTo(boxWidth/2, -boxHeight/2);
+            frontPlateShape.lineTo(boxWidth/2, boxHeight/2);
+            frontPlateShape.lineTo(-boxWidth/2, boxHeight/2);
+            frontPlateShape.lineTo(-boxWidth/2, -boxHeight/2);
+
+            const apertureRadius = state.apertureSize;
+            const holePath = new THREE.Path();
+            holePath.absarc(0, 0, apertureRadius, 0, Math.PI * 2, true);
+            frontPlateShape.holes.push(holePath);
+
+            const frontGeo = new THREE.ShapeGeometry(frontPlateShape);
+            const frontMat = new THREE.MeshStandardMaterial({ color: 0x111827, side: THREE.DoubleSide, roughness: 0.6, metalness: 0.8 });
+            pinholeFrontMesh = new THREE.Mesh(frontGeo, frontMat);
+            pinholeFrontMesh.rotation.y = Math.PI / 2;
+            pinholeFrontMesh.position.set(0, boxHeight/2, 0);
+            cameraBoxGroup.add(pinholeFrontMesh);
+
+            // Ring Highlight
+            const holeRingGeo = new THREE.RingGeometry(apertureRadius, apertureRadius + 0.05, 32);
+            const holeRingMat = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide });
+            pinholeHoleMesh = new THREE.Mesh(holeRingGeo, holeRingMat);
+            pinholeHoleMesh.rotation.y = Math.PI / 2;
+            pinholeHoleMesh.position.set(0.001, boxHeight/2, 0);
+            cameraBoxGroup.add(pinholeHoleMesh);
+
+            // Box Body
+            const wallMat = new THREE.MeshStandardMaterial({
+                color: 0x374151,
+                transparent: true,
+                opacity: state.boxTransparent ? 0.3 : 0.95,
+                side: THREE.DoubleSide
+            });
+
+            const boxBodyGeo = new THREE.BufferGeometry();
+            const vertices = new Float32Array([
+                // Top
+                0, boxHeight, -boxWidth/2,   boxDepth, boxHeight, -boxWidth/2,   boxDepth, boxHeight, boxWidth/2,
+                0, boxHeight, -boxWidth/2,   boxDepth, boxHeight, boxWidth/2,    0, boxHeight, boxWidth/2,
+                // Bottom
+                0, 0, -boxWidth/2,           0, 0, boxWidth/2,                   boxDepth, 0, boxWidth/2,
+                0, 0, -boxWidth/2,           boxDepth, 0, boxWidth/2,            boxDepth, 0, -boxWidth/2,
+                // Left
+                0, 0, -boxWidth/2,           boxDepth, 0, -boxWidth/2,           boxDepth, boxHeight, -boxWidth/2,
+                0, 0, -boxWidth/2,           boxDepth, boxHeight, -boxWidth/2,   0, boxHeight, -boxWidth/2,
+                // Right
+                0, 0, boxWidth/2,            0, boxHeight, boxWidth/2,           boxDepth, boxHeight, boxWidth/2,
+                0, 0, boxWidth/2,            boxDepth, boxHeight, boxWidth/2,    boxDepth, 0, boxWidth/2,
+            ]);
+            boxBodyGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            boxBodyGeo.computeVertexNormals();
+            const boxMesh = new THREE.Mesh(boxBodyGeo, wallMat);
+            cameraBoxGroup.add(boxMesh);
+
+            // Wireframe
+            const wireframe = new THREE.LineSegments(new THREE.WireframeGeometry(boxBodyGeo), new THREE.LineBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.5 }));
+            cameraBoxGroup.add(wireframe);
+
+            // Screen Plane
+            const screenGeo = new THREE.PlaneGeometry(boxWidth - 0.1, boxHeight - 0.1);
+            projectionMaterial = new THREE.MeshBasicMaterial({
+                map: projectionTexture,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.95
+            });
+            groundGlassMesh = new THREE.Mesh(screenGeo, projectionMaterial);
+            groundGlassMesh.rotation.y = -Math.PI / 2;
+            groundGlassMesh.position.set(boxDepth - 0.01, boxHeight/2, 0);
+            cameraBoxGroup.add(groundGlassMesh);
+        }
+
+        function syncThreeObjects() {
+            while (objectsGroup.children.length > 0) objectsGroup.remove(objectsGroup.children[0]);
+
+            state.objects.forEach(objData => {
+                const obj3D = createObjectGeometry(objData.type, objData.scale, objData.color);
+                obj3D.position.set(objData.x, objData.y, objData.z);
+                obj3D.rotation.y = (objData.rotation * Math.PI) / 180;
+                obj3D.userData = { id: objData.id };
+
+                // Highlight border if selected
+                if (objData.id === state.selectedObjId) {
+                    const bbox = new THREE.BoxHelper(obj3D, 0x6366f1);
+                    obj3D.add(bbox);
+                }
+
+                objectsGroup.add(obj3D);
+            });
+        }
+
+        function syncThreeLights() {
+            // Remove existing lights from scene
+            threeLights.forEach(l => {
+                scene.remove(l.light);
+                scene.remove(l.gizmo);
+            });
+            threeLights = [];
+
+            state.lights.forEach(lData => {
+                const pointLight = new THREE.PointLight(new THREE.Color(lData.color), lData.intensity * 2, 40);
+                pointLight.position.set(lData.x, lData.y, lData.z);
+                pointLight.castShadow = true;
+                scene.add(pointLight);
+
+                // Bulb Gizmo
+                const gizmoGeo = new THREE.SphereGeometry(0.25, 16, 16);
+                const gizmoMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(lData.color) });
+                const gizmo = new THREE.Mesh(gizmoGeo, gizmoMat);
+                gizmo.position.set(lData.x, lData.y, lData.z);
+                scene.add(gizmo);
+
+                if (lData.id === state.selectedLightId) {
+                    const ring = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.42, 16), new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide }));
+                    ring.rotation.x = Math.PI / 2;
+                    gizmo.add(ring);
+                }
+
+                threeLights.push({ id: lData.id, light: pointLight, gizmo: gizmo });
+            });
+        }
+
+        function updateRays() {
+            while (raysGroup.children.length > 0) raysGroup.remove(raysGroup.children[0]);
+
+            if (state.rayMode === 'none') return;
+
+            const di_dist = state.focalLength;
+            const apertureR = state.apertureSize;
+
+            // Gather candidate target objects for ray tracing
+            let targetObjs = state.objects;
+            if (state.rayMode === 'selected') {
+                targetObjs = state.objects.filter(o => o.id === state.selectedObjId);
+            }
+
+            targetObjs.forEach(obj => {
+                const topPoint = new THREE.Vector3(obj.x, obj.y + 1.2 * obj.scale, obj.z);
+                const midPoint = new THREE.Vector3(obj.x, obj.y + 0.5 * obj.scale, obj.z);
+
+                const samplePoints = [
+                    { pos: topPoint, color: 0xef4444 },
+                    { pos: midPoint, color: new THREE.Color(obj.color) }
+                ];
+
+                // Light-to-Object Ray Mode
+                if (state.rayMode === 'light_to_object') {
+                    state.lights.forEach(light => {
+                        const lightPos = new THREE.Vector3(light.x, light.y, light.z);
+                        const rayGeo = new THREE.BufferGeometry().setFromPoints([lightPos, topPoint]);
+                        const rayMat = new THREE.LineBasicMaterial({ color: new THREE.Color(light.color), transparent: true, opacity: 0.5 });
+                        raysGroup.add(new THREE.Line(rayGeo, rayMat));
+                    });
+                }
+
+                // Object-to-Camera Rays
+                samplePoints.forEach(pt => {
+                    const pinholePoint = new THREE.Vector3(0, 1.9, 0); // Pinhole center
+                    const dir = new THREE.Vector3().subVectors(pinholePoint, pt.pos).normalize();
+
+                    const t = (di_dist - pt.pos.x) / dir.x;
+                    const screenHitPoint = new THREE.Vector3().copy(pt.pos).add(dir.multiplyScalar(t));
+
+                    const points = [pt.pos, pinholePoint, screenHitPoint];
+                    const rayGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    const rayMat = new THREE.LineBasicMaterial({ color: pt.color, transparent: true, opacity: 0.8 });
+                    raysGroup.add(new THREE.Line(rayGeo, rayMat));
+
+                    // Hit Dot on Screen
+                    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.04 + apertureR * 0.1, 8, 8), new THREE.MeshBasicMaterial({ color: pt.color }));
+                    dot.position.copy(screenHitPoint);
+                    raysGroup.add(dot);
+                });
+            });
+        }
+
+        function updateProjectionTexture() {
+            if (!projectionCtx) return;
+
+            const w = projectionCanvas.width;
+            const h = projectionCanvas.height;
+
+            // Clear Background
+            projectionCtx.fillStyle = '#030712';
+            projectionCtx.fillRect(0, 0, w, h);
+
+            // Subtle Screen Grid
+            projectionCtx.strokeStyle = '#111827';
+            projectionCtx.lineWidth = 1;
+            for (let x = 0; x < w; x += 32) {
+                projectionCtx.beginPath(); projectionCtx.moveTo(x, 0); projectionCtx.lineTo(x, h); projectionCtx.stroke();
+            }
+            for (let y = 0; y < h; y += 32) {
+                projectionCtx.beginPath(); projectionCtx.moveTo(0, y); projectionCtx.lineTo(w, y); projectionCtx.stroke();
+            }
+
+            const apertureBlur = state.apertureSize * 16.0;
+
+            // Sort objects from furthest to closest to camera pinhole (x-axis distance)
+            const sortedObjs = [...state.objects].sort((a, b) => a.x - b.x);
+
+            sortedObjs.forEach(obj => {
+                const dist = Math.abs(obj.x);
+                if (dist <= 0.1) return;
+
+                const mag = state.focalLength / dist;
+                const scaleFactor = mag * 38;
+
+                // Project 3D positions (x,y,z) to 2D Sensor Screen Plane coordinates
+                // Pinhole camera inverts horizontally and vertically: Y' = -Y * M, Z' = -Z * M
+                const projectedY = (obj.y - 1.9) * mag * 38;
+                const projectedZ = obj.z * mag * 38;
+
+                projectionCtx.save();
+                projectionCtx.translate(w / 2, h / 2);
+
+                // 180 degree Optical Inversion
+                projectionCtx.rotate(Math.PI);
+
+                // Position object on projected sensor plane
+                projectionCtx.translate(projectedZ, projectedY);
+
+                if (apertureBlur > 1.2) {
+                    projectionCtx.filter = `blur(${apertureBlur}px)`;
+                } else {
+                    projectionCtx.filter = 'none';
+                }
+
+                draw2DShape(projectionCtx, obj.type, scaleFactor * obj.scale, obj.color);
+
+                projectionCtx.restore();
+            });
+
+            projectionTexture.needsUpdate = true;
+            renderOverlayCanvas();
+        }
+
+        function draw2DShape(ctx, type, size, colorHex) {
+            ctx.fillStyle = colorHex;
+
+            if (type === 'tree') {
+                // Trunk
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(-size * 0.08, 0, size * 0.16, size * 0.3);
+                // Foliage
+                ctx.fillStyle = colorHex;
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -size * (0.4 + i * 0.25));
+                    ctx.lineTo(-size * (0.35 - i * 0.08), -size * (0.15 + i * 0.2));
+                    ctx.lineTo(size * (0.35 - i * 0.08), -size * (0.15 + i * 0.2));
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            } else if (type === 'house') {
+                ctx.fillRect(-size * 0.3, -size * 0.4, size * 0.6, size * 0.4);
+                ctx.fillStyle = '#d97706';
+                ctx.beginPath();
+                ctx.moveTo(0, -size * 0.8);
+                ctx.lineTo(-size * 0.38, -size * 0.4);
+                ctx.lineTo(size * 0.38, -size * 0.4);
+                ctx.fill();
+            } else if (type === 'candle') {
+                ctx.fillStyle = '#e5e7eb';
+                ctx.fillRect(-size * 0.1, -size * 0.7, size * 0.2, size * 0.7);
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(0, -size * 0.82, size * 0.08, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (type === 'letter') {
+                ctx.fillRect(-size * 0.2, -size, size * 0.12, size);
+                ctx.fillRect(-size * 0.2, -size, size * 0.4, size * 0.15);
+                ctx.fillRect(-size * 0.2, -size * 0.55, size * 0.3, size * 0.12);
+            } else if (type === 'sphere') {
+                ctx.beginPath();
+                ctx.arc(0, -size * 0.4, size * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (type === 'cylinder') {
+                ctx.fillRect(-size * 0.25, -size * 0.8, size * 0.5, size * 0.8);
+            }
+        }
+
+        function renderOverlayCanvas() {
+            if (!state.showOverlay) return;
+            overlayCanvas.width = 220;
+            overlayCanvas.height = 220;
+            overlayCtx.clearRect(0, 0, 220, 220);
+            overlayCtx.drawImage(projectionCanvas, 0, 0, 220, 220);
+        }
+
+        function updateSimulation() {
+            txtFocal.textContent = `${state.focalLength.toFixed(1)} m`;
+            txtAperture.textContent = `${state.apertureSize.toFixed(2)} m`;
+
+            // Calculate overall analytics
+            if (state.objects.length > 0) {
+                const avgX = state.objects.reduce((acc, o) => acc + Math.abs(o.x), 0) / state.objects.length;
+                const avgM = state.focalLength / avgX;
+                calcDist.textContent = `${avgX.toFixed(1)} m`;
+                calcMag.textContent = `-${avgM.toFixed(2)}x`;
+            } else {
+                calcDist.textContent = `N/A`;
+                calcMag.textContent = `N/A`;
+            }
+
+            buildCameraBox();
+            syncThreeObjects();
+            syncThreeLights();
+            updateRays();
+            updateProjectionTexture();
+            updateUILists();
+        }
+
+        function updateUILists() {
+            // Objects List
+            document.getElementById('object-count').textContent = state.objects.length;
+            objectsList.innerHTML = '';
+
+            state.objects.forEach(obj => {
+                const active = obj.id === state.selectedObjId;
+                const div = document.createElement('div');
+                div.className = `p-2 rounded-lg border text-xs cursor-pointer flex justify-between items-center transition ${active ? 'bg-indigo-950/60 border-indigo-600/80 text-white' : 'bg-gray-800/60 border-gray-700/60 text-gray-300 hover:bg-gray-800'}`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full inline-block border border-gray-600" style="background-color: ${obj.color}"></span>
+                        <span class="font-medium capitalize">${obj.type} #${obj.id}</span>
+                    </div>
+                    <span class="text-[10px] text-gray-400 font-mono">(${obj.x.toFixed(1)}, ${obj.y.toFixed(1)}, ${obj.z.toFixed(1)})</span>
+                `;
+                div.onclick = () => {
+                    state.selectedObjId = obj.id;
+                    bindObjectInspector();
+                    updateSimulation();
+                };
+                objectsList.appendChild(div);
+            });
+
+            // Lights List
+            document.getElementById('light-count').textContent = state.lights.length;
+            lightsList.innerHTML = '';
+
+            state.lights.forEach(light => {
+                const active = light.id === state.selectedLightId;
+                const div = document.createElement('div');
+                div.className = `p-2 rounded-lg border text-xs cursor-pointer flex justify-between items-center transition ${active ? 'bg-amber-950/60 border-amber-600/80 text-white' : 'bg-gray-800/60 border-gray-700/60 text-gray-300 hover:bg-gray-800'}`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-lightbulb text-amber-400"></i>
+                        <span class="font-medium">Light #${light.id}</span>
+                    </div>
+                    <span class="text-[10px] text-gray-400 font-mono">(${light.x.toFixed(1)}, ${light.y.toFixed(1)}, ${light.z.toFixed(1)})</span>
+                `;
+                div.onclick = () => {
+                    state.selectedLightId = light.id;
+                    bindLightInspector();
+                    updateSimulation();
+                };
+                lightsList.appendChild(div);
+            });
+
+            bindObjectInspector();
+            bindLightInspector();
+        }
+
+        function bindObjectInspector() {
+            const obj = state.objects.find(o => o.id === state.selectedObjId);
+            if (!obj) {
+                objectInspector.classList.add('hidden');
+                return;
+            }
+            objectInspector.classList.remove('hidden');
+            document.getElementById('inspect-obj-title').textContent = `${obj.type.toUpperCase()} #${obj.id}`;
+            document.getElementById('obj-pos-x').value = obj.x;
+            document.getElementById('obj-pos-y').value = obj.y;
+            document.getElementById('obj-pos-z').value = obj.z;
+            document.getElementById('obj-scale').value = obj.scale;
+            document.getElementById('obj-rotation').value = obj.rotation;
+            document.getElementById('obj-color').value = obj.color;
+        }
+
+        function bindLightInspector() {
+            const light = state.lights.find(l => l.id === state.selectedLightId);
+            if (!light) {
+                lightInspector.classList.add('hidden');
+                return;
+            }
+            lightInspector.classList.remove('hidden');
+            document.getElementById('inspect-light-title').textContent = `LIGHT #${light.id}`;
+            document.getElementById('light-pos-x').value = light.x;
+            document.getElementById('light-pos-y').value = light.y;
+            document.getElementById('light-pos-z').value = light.z;
+            document.getElementById('light-intensity').value = light.intensity;
+            document.getElementById('light-color').value = light.color;
+        }
+
+        function loadPreset(presetKey) {
+            state.objects = [];
+            state.lights = [];
+
+            if (presetKey === 'forest') {
+                state.objects = [
+                    { id: 1, type: 'tree', x: -12, y: 0, z: -2.5, scale: 1.2, rotation: 0, color: '#10b981' },
+                    { id: 2, type: 'house', x: -14, y: 0, z: 2.0, scale: 1.1, rotation: 15, color: '#6366f1' },
+                    { id: 3, type: 'tree', x: -10, y: 0, z: 3.5, scale: 0.9, rotation: 45, color: '#059669' }
+                ];
+                state.lights = [
+                    { id: 1, x: -10, y: 8, z: -6, intensity: 1.2, color: '#fef08a' }
+                ];
+                nextObjId = 4; nextLightId = 2;
+            } else if (presetKey === 'colorful_shapes') {
+                state.objects = [
+                    { id: 1, type: 'letter', x: -11, y: 0, z: -2.0, scale: 1.1, rotation: 0, color: '#3b82f6' },
+                    { id: 2, type: 'sphere', x: -10, y: 0, z: 0.8, scale: 1.0, rotation: 0, color: '#ef4444' },
+                    { id: 3, type: 'cylinder', x: -13, y: 0, z: 2.5, scale: 1.0, rotation: 0, color: '#10b981' }
+                ];
+                state.lights = [
+                    { id: 1, x: -8, y: 6, z: -5, intensity: 1.0, color: '#60a5fa' },
+                    { id: 2, x: -9, y: 5, z: 5, intensity: 1.0, color: '#f43f5e' }
+                ];
+                nextObjId = 4; nextLightId = 3;
+            } else if (presetKey === 'candles') {
+                state.objects = [
+                    { id: 1, type: 'candle', x: -9, y: 0, z: -1.5, scale: 1.2, rotation: 0, color: '#f59e0b' },
+                    { id: 2, type: 'candle', x: -11, y: 0, z: 1.2, scale: 1.0, rotation: 0, color: '#f59e0b' }
+                ];
+                state.lights = [
+                    { id: 1, x: -9, y: 2.2, z: -1.5, intensity: 1.5, color: '#fbbf24' },
+                    { id: 2, x: -11, y: 1.8, z: 1.2, intensity: 1.2, color: '#f59e0b' }
+                ];
+                nextObjId = 3; nextLightId = 3;
+            }
+
+            state.selectedObjId = state.objects[0] ? state.objects[0].id : null;
+            state.selectedLightId = state.lights[0] ? state.lights[0].id : null;
+            updateSimulation();
+        }
+
+        function setupUIEventListeners() {
+            // Optics Inputs
+            elFocal.addEventListener('input', (e) => { state.focalLength = parseFloat(e.target.value); updateSimulation(); });
+            elAperture.addEventListener('input', (e) => { state.apertureSize = parseFloat(e.target.value); updateSimulation(); });
+            elRayMode.addEventListener('change', (e) => { state.rayMode = e.target.value; updateRays(); });
+            elToggleBoxTransparent.addEventListener('change', (e) => { state.boxTransparent = e.target.checked; buildCameraBox(); });
+            elToggleOverlay.addEventListener('change', (e) => {
+                state.showOverlay = e.target.checked;
+                screenOverlay.style.opacity = state.showOverlay ? '1' : '0';
+            });
+
+            // Add Object
+            document.getElementById('add-object-btn').addEventListener('click', () => {
+                const type = document.getElementById('add-object-type').value;
+                const newObj = {
+                    id: nextObjId++,
+                    type: type,
+                    x: -11.0,
+                    y: 0,
+                    z: (Math.random() - 0.5) * 4.0,
+                    scale: 1.0,
+                    rotation: 0,
+                    color: '#6366f1'
+                };
+                state.objects.push(newObj);
+                state.selectedObjId = newObj.id;
+                updateSimulation();
+            });
+
+            // Add Light
+            document.getElementById('add-light-btn').addEventListener('click', () => {
+                const newLight = {
+                    id: nextLightId++,
+                    x: -9.0,
+                    y: 6.0,
+                    z: (Math.random() - 0.5) * 6.0,
+                    intensity: 1.0,
+                    color: '#ffffff'
+                };
+                state.lights.push(newLight);
+                state.selectedLightId = newLight.id;
+                updateSimulation();
+            });
+
+            // Delete Handlers
+            document.getElementById('delete-selected-obj').addEventListener('click', () => {
+                state.objects = state.objects.filter(o => o.id !== state.selectedObjId);
+                state.selectedObjId = state.objects[0] ? state.objects[0].id : null;
+                updateSimulation();
+            });
+
+            document.getElementById('delete-selected-light').addEventListener('click', () => {
+                state.lights = state.lights.filter(l => l.id !== state.selectedLightId);
+                state.selectedLightId = state.lights[0] ? state.lights[0].id : null;
+                updateSimulation();
+            });
+
+            // Object Inspector Dynamic Changes
+            ['x', 'y', 'z'].forEach(axis => {
+                document.getElementById(`obj-pos-${axis}`).addEventListener('input', (e) => {
+                    const obj = state.objects.find(o => o.id === state.selectedObjId);
+                    if (obj) { obj[axis] = parseFloat(e.target.value) || 0; updateSimulation(); }
+                });
+                document.getElementById(`light-pos-${axis}`).addEventListener('input', (e) => {
+                    const light = state.lights.find(l => l.id === state.selectedLightId);
+                    if (light) { light[axis] = parseFloat(e.target.value) || 0; updateSimulation(); }
+                });
+            });
+
+            document.getElementById('obj-scale').addEventListener('input', (e) => {
+                const obj = state.objects.find(o => o.id === state.selectedObjId);
+                if (obj) { obj.scale = parseFloat(e.target.value); updateSimulation(); }
+            });
+            document.getElementById('obj-rotation').addEventListener('input', (e) => {
+                const obj = state.objects.find(o => o.id === state.selectedObjId);
+                if (obj) { obj.rotation = parseFloat(e.target.value); updateSimulation(); }
+            });
+            document.getElementById('obj-color').addEventListener('input', (e) => {
+                const obj = state.objects.find(o => o.id === state.selectedObjId);
+                if (obj) { obj.color = e.target.value; updateSimulation(); }
+            });
+
+            document.getElementById('light-intensity').addEventListener('input', (e) => {
+                const light = state.lights.find(l => l.id === state.selectedLightId);
+                if (light) { light.intensity = parseFloat(e.target.value); updateSimulation(); }
+            });
+            document.getElementById('light-color').addEventListener('input', (e) => {
+                const light = state.lights.find(l => l.id === state.selectedLightId);
+                if (light) { light.color = e.target.value; updateSimulation(); }
+            });
+
+            // Presets
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+            });
+
+            // Reset
+            elResetBtn.addEventListener('click', () => loadPreset('forest'));
+        }
+
+        function setupTabNavigation() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+                    btn.classList.add('active');
+                    document.getElementById(btn.dataset.tab).classList.remove('hidden');
+                });
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            initThree();
+            animate();
+        };
+    </script>
+</body>
+</html>

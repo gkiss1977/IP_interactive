@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2D FFT & Image Processing Lab - Ringing & Filter Analysis</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for 1D Filter Profiles & Impulse Responses -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+    canvas {
+      image-rendering: pixelated;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+    .card-glow {
+      box-shadow: 0 4px 20px -2px rgba(59, 130, 246, 0.15);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-900 text-slate-100">
+
+  <!-- Header Header -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+        <i class="fa-solid fa-wave-square text-xl"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg leading-tight text-white flex items-center gap-2">
+          2D FFT & Image Processing Lab 
+          <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">Gibbs & Ringing Edition</span>
+        </h1>
+        <p class="text-xs text-slate-400">Explore 2D Fourier Transforms, Filtering, and Gibbs Phenomenon / Ringing Artifacts</p>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center space-x-1 bg-slate-800 p-1 rounded-xl border border-slate-700/60 text-sm">
+      <button id="tab-lab" onclick="switchTab('lab')" class="px-3 py-1.5 rounded-lg font-medium transition-all bg-blue-600 text-white shadow-sm">
+        <i class="fa-solid fa-sliders mr-1.5"></i>2D Image Lab
+      </button>
+      <button id="tab-filters" onclick="switchTab('filters')" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-700/50">
+        <i class="fa-solid fa-chart-line mr-1.5"></i>Filter Profiles & PSF (1D/2D)
+      </button>
+      <button id="tab-basis" onclick="switchTab('basis')" class="px-3 py-1.5 rounded-lg font-medium transition-all text-slate-400 hover:text-white hover:bg-slate-700/50">
+        <i class="fa-solid fa-grip-lines mr-1.5"></i>Basis Functions
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 p-4 lg:p-6 max-w-[1700px] w-full mx-auto">
+
+    <!-- ================= TAB 1: 2D IMAGE LAB ================= -->
+    <div id="view-lab" class="space-y-6">
+      
+      <!-- Top Control Toolbar -->
+      <div class="bg-slate-800/80 backdrop-blur rounded-2xl p-4 border border-slate-700/60 shadow-lg flex flex-wrap items-center justify-between gap-4">
+        
+        <!-- Source Inputs -->
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Input Source:</span>
+          
+          <button onclick="setPreset('box')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition border border-slate-600">
+            <i class="fa-regular fa-square mr-1 text-amber-400"></i> Sharp Box (High Ringing)
+          </button>
+          <button onclick="setPreset('circle')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition border border-slate-600">
+            <i class="fa-regular fa-circle mr-1 text-blue-400"></i> Circle Disc
+          </button>
+          <button onclick="setPreset('step')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition border border-slate-600">
+            <i class="fa-solid fa-stairs mr-1 text-emerald-400"></i> Step Edge
+          </button>
+          <button onclick="setPreset('zone')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition border border-slate-600">
+            <i class="fa-solid fa-bullseye mr-1 text-purple-400"></i> Zone Plate
+          </button>
+          <button onclick="setPreset('stripes')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition border border-slate-600">
+            <i class="fa-solid fa-bars mr-1 text-pink-400"></i> Grating
+          </button>
+          
+          <label class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition cursor-pointer flex items-center gap-1.5 shadow">
+            <i class="fa-solid fa-upload"></i> Upload Image
+            <input type="file" id="image-loader" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+          </label>
+
+          <button id="btn-draw-mode" onclick="toggleDrawMode()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition border border-slate-600 flex items-center gap-1.5">
+            <i class="fa-solid fa-pen"></i> Draw Canvas
+          </button>
+          <button id="btn-clear-draw" onclick="clearDrawing()" class="hidden px-2.5 py-1.5 rounded-lg text-xs font-medium bg-rose-600/20 text-rose-300 hover:bg-rose-600/30 border border-rose-500/30">
+            Clear Canvas
+          </button>
+        </div>
+
+        <!-- Canvas Resolution & Presets -->
+        <div class="flex items-center gap-3">
+          <label class="text-xs text-slate-400 font-medium">Grid Size:</label>
+          <select id="grid-size" onchange="changeGridSize(this.value)" class="bg-slate-900 text-xs rounded-lg border border-slate-700 px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 text-slate-200">
+            <option value="128">128 × 128 (Fast)</option>
+            <option value="256" selected>256 × 256 (Balanced)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Main Interactive Panels (4 Viewports Grid) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Panel 1: Original Spatial Image -->
+        <div class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 flex flex-col items-center">
+          <div class="w-full flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+              1. Spatial Domain f(x,y)
+            </h3>
+            <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-400">Input</span>
+          </div>
+          <div class="relative group aspect-square w-full max-w-[280px] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
+            <canvas id="canvas-input" class="w-full h-full object-contain cursor-crosshair"></canvas>
+            <div id="draw-hint" class="hidden absolute top-2 left-2 bg-slate-900/90 text-blue-400 text-[10px] px-2 py-1 rounded border border-blue-500/30 backdrop-blur">
+              <i class="fa-solid fa-pen mr-1"></i> Draw with Mouse
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 text-center">Original spatial intensity image $f(x,y)$.</p>
+        </div>
+
+        <!-- Panel 2: 2D Frequency Spectrum |F(u,v)| -->
+        <div class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 flex flex-col items-center">
+          <div class="w-full flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block"></span>
+              2. FFT Magnitude Spectrum
+            </h3>
+            <div class="flex items-center gap-1">
+              <button onclick="toggleLogScale()" id="btn-log" class="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded font-medium">Log Scale</button>
+            </div>
+          </div>
+          <div class="relative aspect-square w-full max-w-[280px] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
+            <canvas id="canvas-fft" class="w-full h-full object-contain"></canvas>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 text-center">Centered $\log(1 + |F(u,v)|)$ spectrum.</p>
+        </div>
+
+        <!-- Panel 3: Filter Mask H(u,v) -->
+        <div class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 flex flex-col items-center">
+          <div class="w-full flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+              3. Filter Transfer H(u,v)
+            </h3>
+            <span id="filter-type-tag" class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-mono">Ideal LPF</span>
+          </div>
+          <div class="relative aspect-square w-full max-w-[280px] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
+            <canvas id="canvas-filter" class="w-full h-full object-contain"></canvas>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 text-center">Multiplied in Frequency Domain $G(u,v) = F \cdot H$.</p>
+        </div>
+
+        <!-- Panel 4: Reconstructed Output (Filtered / Difference) -->
+        <div class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 flex flex-col items-center">
+          <div class="w-full flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+              4. Reconstructed Output
+            </h3>
+            <div class="flex items-center space-x-1 bg-slate-900 p-0.5 rounded border border-slate-700 text-[10px]">
+              <button id="view-reconstructed" onclick="setOutputView('reconstructed')" class="px-2 py-0.5 rounded bg-rose-600 text-white font-medium">Filtered</button>
+              <button id="view-diff" onclick="setOutputView('diff')" class="px-2 py-0.5 rounded text-slate-400 hover:text-white font-medium">Ringing Ripple</button>
+            </div>
+          </div>
+          <div class="relative aspect-square w-full max-w-[280px] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-inner flex items-center justify-center">
+            <canvas id="canvas-output" class="w-full h-full object-contain"></canvas>
+          </div>
+          <p id="output-caption" class="text-[11px] text-slate-400 mt-2 text-center">Inverse FFT $g(x,y) = \mathscr{F}^{-1}\{F \cdot H\}$.</p>
+        </div>
+
+      </div>
+
+      <!-- Filter Settings & Ringing Diagnostics Dashboard -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Filter Controls Panel -->
+        <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-blue-400 flex items-center gap-2">
+            <i class="fa-solid fa-sliders"></i> Filter Parameters
+          </h3>
+
+          <!-- Filter Family -->
+          <div>
+            <label class="text-xs font-medium text-slate-300 mb-1 block">Filter Profile Type:</label>
+            <select id="filter-type" onchange="updateFilterParams()" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+              <optgroup label="Low-Pass Filters (Observe Gibbs Ringing)">
+                <option value="ideal-lpf" selected>Ideal Low-Pass (Step Cutoff -> Maximum Ringing)</option>
+                <option value="butterworth-lpf">Butterworth Low-Pass (Controllable Order)</option>
+                <option value="gaussian-lpf">Gaussian Low-Pass (Zero Ringing / Smooth)</option>
+                <option value="exponential-lpf">Exponential Low-Pass</option>
+                <option value="raised-cosine-lpf">Cosine / Raised Cosine LPF</option>
+              </optgroup>
+              <optgroup label="High-Pass Filters">
+                <option value="ideal-hpf">Ideal High-Pass</option>
+                <option value="butterworth-hpf">Butterworth High-Pass</option>
+                <option value="gaussian-hpf">Gaussian High-Pass</option>
+              </optgroup>
+              <optgroup label="Band-Pass & Selective Filtering">
+                <option value="bandpass">Band-Pass Filter</option>
+                <option value="notch">Notch Reject Filter</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- Cutoff Frequency D0 -->
+          <div>
+            <div class="flex justify-between items-center text-xs text-slate-300 mb-1">
+              <span>Cutoff Frequency ($D_0$):</span>
+              <span id="val-d0" class="font-mono text-blue-400 font-bold">30 px</span>
+            </div>
+            <input type="range" id="slider-d0" min="2" max="120" value="30" oninput="updateFilterParams()" class="w-full accent-blue-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+          </div>
+
+          <!-- Butterworth Order n -->
+          <div id="container-order">
+            <div class="flex justify-between items-center text-xs text-slate-300 mb-1">
+              <span>Filter Order ($n$) <span class="text-[10px] text-slate-400">(Butterworth sharpness)</span>:</span>
+              <span id="val-order" class="font-mono text-amber-400 font-bold">2</span>
+            </div>
+            <input type="range" id="slider-order" min="1" max="10" value="2" oninput="updateFilterParams()" class="w-full accent-amber-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+            <p class="text-[10px] text-slate-400 mt-1">High orders ($n \ge 4$) approach the Ideal filter step function, introducing noticeable ringing ripples.</p>
+          </div>
+
+          <!-- Bandwidth W (For Bandpass / Notch) -->
+          <div id="container-bandwidth" class="hidden">
+            <div class="flex justify-between items-center text-xs text-slate-300 mb-1">
+              <span>Filter Bandwidth ($W$):</span>
+              <span id="val-bw" class="font-mono text-emerald-400 font-bold">15 px</span>
+            </div>
+            <input type="range" id="slider-bw" min="2" max="50" value="15" oninput="updateFilterParams()" class="w-full accent-emerald-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+          </div>
+
+        </div>
+
+        <!-- Gibbs Ringing Explanation & Math Box -->
+        <div class="lg:col-span-2 bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col justify-between">
+          <div>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2 mb-3">
+              <i class="fa-solid fa-circle-nodes"></i> Ringing Artifacts & The Gibbs Phenomenon
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300 leading-relaxed">
+              <div class="bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/50 space-y-2">
+                <span class="font-bold text-amber-300 block border-b border-slate-700 pb-1">Why Ringing Happens:</span>
+                <p>
+                  An <strong>Ideal Low-Pass Filter</strong> has a sharp vertical step discontinuity at cutoff $D_0$. 
+                  By the <em>Convolution Theorem</em>, multiplication in frequency space corresponds to convolution with the spatial impulse response $h(x,y)$.
+                </p>
+                <p class="font-mono text-[11px] text-blue-300 bg-slate-950 p-2 rounded border border-slate-800">
+                  H(u,v) = rect(D / 2D₀)  ⟷  h(x,y) = sinc(D₀ · r)
+                </p>
+                <p class="text-[11px] text-slate-400">
+                  The spatial <code class="text-amber-300 font-mono">sinc</code> kernel contains infinite decaying side-lobes (ripples). Convolving sharp edges with these side-lobes produces overshoot and undershoot oscillations known as <strong>Ringing</strong>.
+                </p>
+              </div>
+
+              <div class="bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/50 space-y-2">
+                <span class="font-bold text-emerald-300 block border-b border-slate-700 pb-1">Suppressing Ringing (Smooth Filters):</span>
+                <p>
+                  To eliminate spatial ripples, the frequency transfer function $H(u,v)$ must transition smoothly without sharp edges.
+                </p>
+                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                  <li><strong class="text-emerald-400">Gaussian Filter:</strong> The Fourier transform of a Gaussian is another Gaussian ($e^{-r^2} \leftrightarrow e^{-k u^2}$). It has <em>zero side-lobes</em>, guaranteeing <strong>0% ringing</strong>.</li>
+                  <li><strong class="text-amber-400">Butterworth Filter:</strong> Allows a smooth trade-off. Order $n=1,2$ has negligible ringing, while order $n \ge 8$ approaches the ideal step and induces ringing.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 p-3 bg-blue-950/40 border border-blue-500/30 rounded-xl flex items-center justify-between text-xs text-blue-200">
+            <span class="flex items-center gap-2">
+              <i class="fa-solid fa-lightbulb text-amber-400 text-base"></i>
+              <span><strong>Interactive Tip:</strong> Switch to the <em>"Ringing Ripple"</em> view above or click the <strong>Filter Profiles & PSF</strong> tab to inspect the 1D sinc side-lobes in real-time!</span>
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================= TAB 2: FILTER PROFILES & IMPULSE RESPONSE (1D/2D) ================= -->
+    <div id="view-filters" class="hidden space-y-6">
+      
+      <!-- Top Explanation Banner -->
+      <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg">
+        <h2 class="text-base font-bold text-white flex items-center gap-2 mb-1">
+          <i class="fa-solid fa-chart-line text-blue-400"></i> Interactive 1D/2D Transfer Function & Point Spread Function (PSF) Analyzer
+        </h2>
+        <p class="text-xs text-slate-400">
+          Compare frequency responses $H(f)$ against their spatial domain impulse responses $h(x)$. Notice how sharp step cutoffs create large spatial side-lobes (ripples), whereas smooth attenuation yields clean spatial kernels.
+        </p>
+      </div>
+
+      <!-- Charts Section: Side-by-Side 1D Curves -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- 1D Frequency Domain Profile H(f) -->
+        <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                Frequency Domain Profile H(f)
+              </h3>
+              <p class="text-[11px] text-slate-400">Cross-section of the filter's magnitude response vs frequency $f$</p>
+            </div>
+            <span class="text-xs font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-1 rounded">1D Cross-Section</span>
+          </div>
+          <div class="relative flex-1 min-h-[300px] w-full bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
+            <canvas id="chart-frequency"></canvas>
+          </div>
+        </div>
+
+        <!-- 1D Spatial Impulse Response / PSF h(x) -->
+        <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                Spatial Impulse Response h(x) [Point Spread Function]
+              </h3>
+              <p class="text-[11px] text-slate-400">Inverse Fourier Transform $\mathscr{F}^{-1}\{H(f)\}$. Negative side-lobes cause ringing.</p>
+            </div>
+            <span class="text-xs font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-1 rounded">Spatial Sinc / Kernel</span>
+          </div>
+          <div class="relative flex-1 min-h-[300px] w-full bg-slate-900/80 p-3 rounded-xl border border-slate-700/50">
+            <canvas id="chart-impulse"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Filter Comparison Grid Cards -->
+      <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300 mb-4 flex items-center gap-2">
+          <i class="fa-solid fa-layer-group text-purple-400"></i> Comprehensive Filter Type Comparison Table
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          
+          <!-- Ideal LPF -->
+          <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-amber-400">Ideal Filter</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-red-500/20 text-red-300 border border-red-500/30">Severe Ringing</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">
+              Truncates abruptly at $D_0$. Infinite spatial side-lobes result in severe Gibbs oscillations around image edges.
+            </p>
+            <div class="font-mono text-[10px] text-slate-300 bg-slate-950 p-2 rounded">H(D) = 1 if D ≤ D₀ else 0</div>
+          </div>
+
+          <!-- Butterworth LPF -->
+          <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-blue-400">Butterworth</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">Tunable Ringing</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">
+              Smooth transition controlled by order $n$. Low orders ($n=1,2$) eliminate ringing; high orders ($n \ge 8$) approach step cutoff.
+            </p>
+            <div class="font-mono text-[10px] text-slate-300 bg-slate-950 p-2 rounded">H(D) = 1 / [1 + (D/D₀)²ⁿ]</div>
+          </div>
+
+          <!-- Gaussian LPF -->
+          <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-emerald-400">Gaussian</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Zero Ringing</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">
+              Smooth bell-curve in both frequency and spatial domains. Inverse FT of a Gaussian is a Gaussian, guaranteeing zero ripples.
+            </p>
+            <div class="font-mono text-[10px] text-slate-300 bg-slate-950 p-2 rounded">H(D) = exp(-D² / 2D₀²)</div>
+          </div>
+
+          <!-- Raised Cosine LPF -->
+          <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-purple-400">Raised Cosine</span>
+              <span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Minimal Ringing</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">
+              Smooth sinusoidal roll-off. Widely used in telecom/signal processing to minimize inter-symbol interference and spatial ringing.
+            </p>
+            <div class="font-mono text-[10px] text-slate-300 bg-slate-950 p-2 rounded">H(D) = ½[1 + cos(π D / D₀)]</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= TAB 3: BASIS FUNCTIONS ================= -->
+    <div id="view-basis" class="hidden space-y-6">
+      
+      <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg">
+        <h2 class="text-base font-bold text-white flex items-center gap-2 mb-1">
+          <i class="fa-solid fa-grip-lines text-indigo-400"></i> 2D Fourier Basis Wave Visualizer
+        </h2>
+        <p class="text-xs text-slate-400">
+          Every 2D image is decomposed into a linear combination of 2D sinusoidal plane waves: $\cos(2\pi(ux + vy)/N)$. Adjust spatial frequencies $u$ and $v$ below.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Basis Controls -->
+        <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-indigo-400">Frequency Coordinates</h3>
+          
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span>Horizontal Frequency ($u$):</span>
+              <span id="val-u" class="font-mono text-indigo-400 font-bold">4</span>
+            </div>
+            <input type="range" id="slider-u" min="-16" max="16" value="4" oninput="renderBasisWave()" class="w-full accent-indigo-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span>Vertical Frequency ($v$):</span>
+              <span id="val-v" class="font-mono text-indigo-400 font-bold">2</span>
+            </div>
+            <input type="range" id="slider-v" min="-16" max="16" value="2" oninput="renderBasisWave()" class="w-full accent-indigo-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+          </div>
+
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700 text-xs space-y-1">
+            <span class="text-slate-400 block">Wavelength $\lambda$:</span>
+            <span id="val-lambda" class="font-mono text-emerald-400 font-bold">14.3 px</span>
+            <span class="text-slate-400 block mt-2">Wave Orientation $\theta$:</span>
+            <span id="val-theta" class="font-mono text-amber-400 font-bold">26.6°</span>
+          </div>
+        </div>
+
+        <!-- Basis Wave Display -->
+        <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col items-center justify-center">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3">2D Spatial Basis Wave $\cos(2\pi(ux+vy)/N)$</h3>
+          <div class="aspect-square w-full max-w-[280px] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-inner">
+            <canvas id="canvas-basis" class="w-full h-full object-contain"></canvas>
+          </div>
+        </div>
+
+        <!-- Corresponding Impulse in Frequency Spectrum -->
+        <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 shadow-lg flex flex-col items-center justify-center">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 mb-3">Frequency Impulse Delta Pair</h3>
+          <div class="aspect-square w-full max-w-[280px] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-inner">
+            <canvas id="canvas-basis-fft" class="w-full h-full object-contain"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    // --- Global State ---
+    let N = 256; // Grid resolution (128 or 256)
+    let activeTab = 'lab';
+    let outputViewMode = 'reconstructed'; // 'reconstructed' or 'diff'
+    let isLogScale = true;
+    let isDrawing = false;
+    let isDrawMode = false;
+
+    // Filter Parameters
+    let filterType = 'ideal-lpf';
+    let D0 = 30;
+    let filterOrder = 2;
+    let bandwidth = 15;
+
+    // Image Buffers
+    let realIn = new Float32Array(N * N);
+    let imagIn = new Float32Array(N * N);
+    let realOut = new Float32Array(N * N);
+    let imagOut = new Float32Array(N * N);
+    let filterMask = new Float32Array(N * N);
+    let spatialFiltered = new Float32Array(N * N);
+
+    // Chart Instances
+    let chartFreqInstance = null;
+    let chartImpulseInstance = null;
+
+    // --- Window Onload Initialization ---
+    window.onload = function() {
+      setupCanvasContexts();
+      initChartInstances();
+      setPreset('box');
+      setupDrawingEvents();
+    };
+
+    // Tab Switching
+    function switchTab(tab) {
+      activeTab = tab;
+      ['lab', 'filters', 'basis'].forEach(t => {
+        const view = document.getElementById(`view-${t}`);
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === tab) {
+          view.classList.remove('hidden');
+          btn.classList.add('bg-blue-600', 'text-white');
+          btn.classList.remove('text-slate-400');
+        } else {
+          view.classList.add('hidden');
+          btn.classList.remove('bg-blue-600', 'text-white');
+          btn.classList.add('text-slate-400');
+        }
+      });
+
+      if (tab === 'filters') {
+        update1DCharts();
+      } else if (tab === 'basis') {
+        renderBasisWave();
+      }
+    }
+
+    // --- Canvas & Context Management ---
+    let ctxInput, ctxFFT, ctxFilter, ctxOutput, ctxBasis, ctxBasisFFT;
+
+    function setupCanvasContexts() {
+      const cIn = document.getElementById('canvas-input');
+      const cFFT = document.getElementById('canvas-fft');
+      const cFilt = document.getElementById('canvas-filter');
+      const cOut = document.getElementById('canvas-output');
+      const cBas = document.getElementById('canvas-basis');
+      const cBasFFT = document.getElementById('canvas-basis-fft');
+
+      [cIn, cFFT, cFilt, cOut, cBas, cBasFFT].forEach(c => {
+        c.width = N;
+        c.height = N;
+      });
+
+      ctxInput = cIn.getContext('2d');
+      ctxFFT = cFFT.getContext('2d');
+      ctxFilter = cFilt.getContext('2d');
+      ctxOutput = cOut.getContext('2d');
+      ctxBasis = cBas.getContext('2d');
+      ctxBasisFFT = cBasFFT.getContext('2d');
+    }
+
+    function changeGridSize(val) {
+      N = parseInt(val);
+      realIn = new Float32Array(N * N);
+      imagIn = new Float32Array(N * N);
+      realOut = new Float32Array(N * N);
+      imagOut = new Float32Array(N * N);
+      filterMask = new Float32Array(N * N);
+      spatialFiltered = new Float32Array(N * N);
+      
+      setupCanvasContexts();
+      setPreset('box');
+    }
+
+    // --- 2D Cooley-Tukey Radix-2 Fast Fourier Transform ---
+    function fft1D(re, im, dir) {
+      const n = re.length;
+      for (let i = 0; i < n; i++) {
+        let j = 0;
+        for (let k = 0, bit = n >> 1; bit > 0; k++, bit >>= 1) {
+          if (i & (1 << k)) j |= bit;
+        }
+        if (j > i) {
+          let tr = re[i]; re[i] = re[j]; re[j] = tr;
+          let ti = im[i]; im[i] = im[j]; im[j] = ti;
+        }
+      }
+
+      for (let len = 2; len <= n; len <<= 1) {
+        const half = len >> 1;
+        const ang = (2 * Math.PI / len) * dir;
+        const wlen_r = Math.cos(ang);
+        const wlen_i = Math.sin(ang);
+
+        for (let i = 0; i < n; i += len) {
+          let w_r = 1.0;
+          let w_i = 0.0;
+          for (let j = 0; j < half; j++) {
+            const pos = i + j;
+            const match = pos + half;
+            const u_r = re[pos], u_i = im[pos];
+            const v_r = re[match] * w_r - im[match] * w_i;
+            const v_i = re[match] * w_i + im[match] * w_r;
+
+            re[pos] = u_r + v_r;
+            im[pos] = u_i + v_i;
+            re[match] = u_r - v_r;
+            im[match] = u_i - v_i;
+
+            const next_w_r = w_r * wlen_r - w_i * wlen_i;
+            w_i = w_r * wlen_i + w_i * wlen_r;
+            w_r = next_w_r;
+          }
+        }
+      }
+
+      if (dir === 1) {
+        for (let i = 0; i < n; i++) {
+          re[i] /= n;
+          im[i] /= n;
+        }
+      }
+    }
+
+    function fft2D(re, im, dir) {
+      const rowR = new Float32Array(N);
+      const rowI = new Float32Array(N);
+
+      // Transform Rows
+      for (let y = 0; y < N; y++) {
+        const offset = y * N;
+        for (let x = 0; x < N; x++) {
+          rowR[x] = re[offset + x];
+          rowI[x] = im[offset + x];
+        }
+        fft1D(rowR, rowI, dir);
+        for (let x = 0; x < N; x++) {
+          re[offset + x] = rowR[x];
+          im[offset + x] = rowI[x];
+        }
+      }
+
+      // Transform Columns
+      const colR = new Float32Array(N);
+      const colI = new Float32Array(N);
+      for (let x = 0; x < N; x++) {
+        for (let y = 0; y < N; y++) {
+          colR[y] = re[y * N + x];
+          colI[y] = im[y * N + x];
+        }
+        fft1D(colR, colI, dir);
+        for (let y = 0; y < N; y++) {
+          re[y * N + x] = colR[y];
+          im[y * N + x] = colI[y];
+        }
+      }
+    }
+
+    // Centered FFT Shift
+    function fftShift(data) {
+      const shifted = new Float32Array(N * N);
+      const half = N / 2;
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          const sy = (y + half) % N;
+          const sx = (x + half) % N;
+          shifted[sy * N + sx] = data[y * N + x];
+        }
+      }
+      return shifted;
+    }
+
+    // --- Main Processing Pipeline ---
+    function processFFT() {
+      // Copy Input to real buffer, zero imaginary
+      realOut.set(realIn);
+      imagOut.fill(0);
+
+      // Forward FFT
+      fft2D(realOut, imagOut, -1);
+
+      // Shift Spectrum
+      const shiftedR = fftShift(realOut);
+      const shiftedI = fftShift(imagOut);
+
+      // Render Magnitude Spectrum
+      renderFFTSpectrum(shiftedR, shiftedI);
+
+      // Generate Filter Mask H(u,v)
+      generate2DFilterMask();
+      renderFilterMask();
+
+      // Multiply in Frequency Domain G(u,v) = F(u,v) * H(u,v)
+      for (let i = 0; i < N * N; i++) {
+        shiftedR[i] *= filterMask[i];
+        shiftedI[i] *= filterMask[i];
+      }
+
+      // Unshift back before Inverse FFT
+      const unshiftedR = fftShift(shiftedR);
+      const unshiftedI = fftShift(shiftedI);
+
+      // Inverse FFT
+      fft2D(unshiftedR, unshiftedI, 1);
+
+      // Store Reconstructed Spatial Signal
+      for (let i = 0; i < N * N; i++) {
+        spatialFiltered[i] = unshiftedR[i];
+      }
+
+      renderOutputImage();
+    }
+
+    // --- Filter Mask Generator ---
+    function computeFilterValue1D(dist, cutoff, order, bw, type) {
+      switch (type) {
+        case 'ideal-lpf':
+          return dist <= cutoff ? 1.0 : 0.0;
+        case 'butterworth-lpf':
+          return 1.0 / (1.0 + Math.pow(dist / Math.max(0.1, cutoff), 2 * order));
+        case 'gaussian-lpf':
+          return Math.exp(- (dist * dist) / (2 * cutoff * cutoff));
+        case 'exponential-lpf':
+          return Math.exp(- Math.pow(dist / Math.max(0.1, cutoff), order));
+        case 'raised-cosine-lpf':
+          if (dist <= cutoff * 0.5) return 1.0;
+          if (dist >= cutoff * 1.5) return 0.0;
+          return 0.5 * (1.0 + Math.cos(Math.PI * (dist - cutoff * 0.5) / cutoff));
+        case 'ideal-hpf':
+          return dist >= cutoff ? 1.0 : 0.0;
+        case 'butterworth-hpf':
+          if (dist === 0) return 0.0;
+          return 1.0 / (1.0 + Math.pow(cutoff / dist, 2 * order));
+        case 'gaussian-hpf':
+          return 1.0 - Math.exp(- (dist * dist) / (2 * cutoff * cutoff));
+        case 'bandpass':
+          const bpDist = Math.abs(dist - cutoff);
+          return Math.exp(- (bpDist * bpDist) / (2 * (bw / 2) * (bw / 2)));
+        case 'notch':
+          const notchDist = Math.abs(dist - cutoff);
+          return 1.0 - Math.exp(- (notchDist * notchDist) / (2 * (bw / 2) * (bw / 2)));
+        default:
+          return 1.0;
+      }
+    }
+
+    function generate2DFilterMask() {
+      const cx = N / 2;
+      const cy = N / 2;
+
+      for (let y = 0; y < N; y++) {
+        const dy = y - cy;
+        for (let x = 0; x < N; x++) {
+          const dx = x - cx;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          filterMask[y * N + x] = computeFilterValue1D(dist, D0, filterOrder, bandwidth, filterType);
+        }
+      }
+    }
+
+    // --- Rendering Functions ---
+    function renderFFTSpectrum(sR, sI) {
+      const imgData = ctxFFT.createImageData(N, N);
+      let maxVal = 0;
+
+      // Compute Magnitude
+      const mag = new Float32Array(N * N);
+      for (let i = 0; i < N * N; i++) {
+        let m = Math.sqrt(sR[i] * sR[i] + sI[i] * sI[i]);
+        if (isLogScale) m = Math.log(1 + m * 100);
+        mag[i] = m;
+        if (m > maxVal) maxVal = m;
+      }
+
+      if (maxVal === 0) maxVal = 1;
+
+      for (let i = 0; i < N * N; i++) {
+        const val = Math.min(255, Math.max(0, (mag[i] / maxVal) * 255));
+        const idx = i * 4;
+        imgData.data[idx] = val * 0.4;     // R
+        imgData.data[idx + 1] = val * 0.7; // G
+        imgData.data[idx + 2] = val;       // B
+        imgData.data[idx + 3] = 255;
+      }
+      ctxFFT.putImageData(imgData, 0, 0);
+    }
+
+    function renderFilterMask() {
+      const imgData = ctxFilter.createImageData(N, N);
+      for (let i = 0; i < N * N; i++) {
+        const val = filterMask[i] * 255;
+        const idx = i * 4;
+        imgData.data[idx] = val;       // R
+        imgData.data[idx + 1] = val * 0.8; // G
+        imgData.data[idx + 2] = val * 0.2; // B
+        imgData.data[idx + 3] = 255;
+      }
+      ctxFilter.putImageData(imgData, 0, 0);
+    }
+
+    function renderOutputImage() {
+      const imgData = ctxOutput.createImageData(N, N);
+
+      for (let i = 0; i < N * N; i++) {
+        const idx = i * 4;
+        if (outputViewMode === 'reconstructed') {
+          const val = Math.min(255, Math.max(0, spatialFiltered[i]));
+          imgData.data[idx] = val;
+          imgData.data[idx + 1] = val;
+          imgData.data[idx + 2] = val;
+        } else {
+          // Spatial Difference View |Original - Filtered| (Amphified to highlight ringing)
+          const diff = Math.abs(realIn[i] - spatialFiltered[i]) * 3.0; // 3x gain
+          imgData.data[idx] = Math.min(255, diff * 1.5); // Red heat
+          imgData.data[idx + 1] = Math.min(255, diff * 0.4);
+          imgData.data[idx + 2] = Math.min(255, diff * 0.1);
+        }
+        imgData.data[idx + 3] = 255;
+      }
+      ctxOutput.putImageData(imgData, 0, 0);
+    }
+
+    function renderInputCanvas() {
+      const imgData = ctxInput.createImageData(N, N);
+      for (let i = 0; i < N * N; i++) {
+        const val = Math.min(255, Math.max(0, realIn[i]));
+        const idx = i * 4;
+        imgData.data[idx] = val;
+        imgData.data[idx + 1] = val;
+        imgData.data[idx + 2] = val;
+        imgData.data[idx + 3] = 255;
+      }
+      ctxInput.putImageData(imgData, 0, 0);
+    }
+
+    // --- Control Handlers ---
+    function updateFilterParams() {
+      filterType = document.getElementById('filter-type').value;
+      D0 = parseFloat(document.getElementById('slider-d0').value);
+      filterOrder = parseInt(document.getElementById('slider-order').value);
+      bandwidth = parseFloat(document.getElementById('slider-bw').value);
+
+      document.getElementById('val-d0').textContent = `${D0} px`;
+      document.getElementById('val-order').textContent = filterOrder;
+      document.getElementById('val-bw').textContent = `${bandwidth} px`;
+
+      // UI Visibility Toggle
+      const containerOrder = document.getElementById('container-order');
+      const containerBW = document.getElementById('container-bandwidth');
+      
+      containerOrder.classList.toggle('hidden', !filterType.includes('butterworth') && !filterType.includes('exponential'));
+      containerBW.classList.toggle('hidden', !filterType.includes('bandpass') && !filterType.includes('notch'));
+
+      document.getElementById('filter-type-tag').textContent = filterType.toUpperCase();
+
+      processFFT();
+      if (activeTab === 'filters') update1DCharts();
+    }
+
+    function setOutputView(mode) {
+      outputViewMode = mode;
+      document.getElementById('view-reconstructed').className = mode === 'reconstructed' 
+        ? 'px-2 py-0.5 rounded bg-rose-600 text-white font-medium' 
+        : 'px-2 py-0.5 rounded text-slate-400 hover:text-white font-medium';
+      document.getElementById('view-diff').className = mode === 'diff' 
+        ? 'px-2 py-0.5 rounded bg-rose-600 text-white font-medium' 
+        : 'px-2 py-0.5 rounded text-slate-400 hover:text-white font-medium';
+      
+      document.getElementById('output-caption').textContent = mode === 'reconstructed'
+        ? 'Inverse FFT g(x,y) = F⁻¹{F · H}.'
+        : 'Ringing Amplified View |f(x,y) - g(x,y)| × 3. Isolates spatial ripples.';
+
+      renderOutputImage();
+    }
+
+    function toggleLogScale() {
+      isLogScale = !isLogScale;
+      document.getElementById('btn-log').className = isLogScale 
+        ? 'text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded font-medium' 
+        : 'text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-medium';
+      processFFT();
+    }
+
+    // --- Input Presets ---
+    function setPreset(preset) {
+      realIn.fill(0);
+      const center = N / 2;
+
+      if (preset === 'box') {
+        const size = Math.floor(N / 4);
+        for (let y = center - size; y < center + size; y++) {
+          for (let x = center - size; x < center + size; x++) {
+            realIn[y * N + x] = 255;
+          }
+        }
+      } else if (preset === 'circle') {
+        const radius = N / 5;
+        for (let y = 0; y < N; y++) {
+          for (let x = 0; x < N; x++) {
+            const dy = y - center, dx = x - center;
+            if (dx * dx + dy * dy <= radius * radius) {
+              realIn[y * N + x] = 255;
+            }
+          }
+        }
+      } else if (preset === 'step') {
+        for (let y = 0; y < N; y++) {
+          for (let x = center; x < N; x++) {
+            realIn[y * N + x] = 255;
+          }
+        }
+      } else if (preset === 'zone') {
+        for (let y = 0; y < N; y++) {
+          for (let x = 0; x < N; x++) {
+            const dx = x - center, dy = y - center;
+            const r2 = dx * dx + dy * dy;
+            const val = 0.5 + 0.5 * Math.cos(0.05 * r2);
+            realIn[y * N + x] = val * 255;
+          }
+        }
+      } else if (preset === 'stripes') {
+        for (let y = 0; y < N; y++) {
+          for (let x = 0; x < N; x++) {
+            if ((x % 16) < 8) realIn[y * N + x] = 255;
+          }
+        }
+      }
+
+      renderInputCanvas();
+      processFFT();
+    }
+
+    // --- Drawing Controls ---
+    function toggleDrawMode() {
+      isDrawMode = !isDrawMode;
+      const btn = document.getElementById('btn-draw-mode');
+      const hint = document.getElementById('draw-hint');
+      const clearBtn = document.getElementById('btn-clear-draw');
+
+      if (isDrawMode) {
+        btn.classList.replace('bg-slate-700', 'bg-emerald-600');
+        hint.classList.remove('hidden');
+        clearBtn.classList.remove('hidden');
+      } else {
+        btn.classList.replace('bg-emerald-600', 'bg-slate-700');
+        hint.classList.add('hidden');
+      }
+    }
+
+    function clearDrawing() {
+      realIn.fill(0);
+      renderInputCanvas();
+      processFFT();
+    }
+
+    function setupDrawingEvents() {
+      const cIn = document.getElementById('canvas-input');
+
+      function drawAtMouse(e) {
+        if (!isDrawing || !isDrawMode) return;
+        const rect = cIn.getBoundingClientRect();
+        const scale = N / rect.width;
+        const x = Math.floor((e.clientX - rect.left) * scale);
+        const y = Math.floor((e.clientY - rect.top) * scale);
+        const radius = Math.floor(N / 32);
+
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const px = x + dx, py = y + dy;
+            if (px >= 0 && px < N && py >= 0 && py < N) {
+              if (dx * dx + dy * dy <= radius * radius) {
+                realIn[py * N + px] = 255;
+              }
+            }
+          }
+        }
+        renderInputCanvas();
+        processFFT();
+      }
+
+      cIn.addEventListener('mousedown', (e) => { isDrawing = true; drawAtMouse(e); });
+      cIn.addEventListener('mousemove', drawAtMouse);
+      window.addEventListener('mouseup', () => { isDrawing = false; });
+    }
+
+    function handleImageUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = N;
+          tempCanvas.height = N;
+          const tCtx = tempCanvas.getContext('2d');
+          tCtx.drawImage(img, 0, 0, N, N);
+          const imgData = tCtx.getImageData(0, 0, N, N);
+
+          for (let i = 0; i < N * N; i++) {
+            const r = imgData.data[i * 4];
+            const g = imgData.data[i * 4 + 1];
+            const b = imgData.data[i * 4 + 2];
+            realIn[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+          }
+          renderInputCanvas();
+          processFFT();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // --- Chart.js 1D Filter & Spatial Impulse Visualizer ---
+    function initChartInstances() {
+      const ctxF = document.getElementById('chart-frequency').getContext('2d');
+      const ctxI = document.getElementById('chart-impulse').getContext('2d');
+
+      const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 150 },
+        scales: {
+          x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+          y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+        },
+        plugins: {
+          legend: { labels: { color: '#f8fafc', font: { size: 11 } } },
+          tooltip: { mode: 'index', intersect: false }
+        }
+      };
+
+      chartFreqInstance = new Chart(ctxF, {
+        type: 'line',
+        data: { labels: [], datasets: [] },
+        options: chartOptions
+      });
+
+      chartImpulseInstance = new Chart(ctxI, {
+        type: 'line',
+        data: { labels: [], datasets: [] },
+        options: chartOptions
+      });
+    }
+
+    function update1DCharts() {
+      if (!chartFreqInstance || !chartImpulseInstance) return;
+
+      const numPoints = 128;
+      const freqLabels = [];
+      const impulseLabels = [];
+      
+      const idealFreq = [], butterFreq = [], gaussFreq = [];
+      
+      // Calculate 1D Frequency Profiles
+      for (let i = 0; i < numPoints; i++) {
+        const f = i - numPoints / 2;
+        const dist = Math.abs(f);
+        freqLabels.push(f);
+        
+        idealFreq.push(computeFilterValue1D(dist, D0 / 2, filterOrder, bandwidth, 'ideal-lpf'));
+        butterFreq.push(computeFilterValue1D(dist, D0 / 2, filterOrder, bandwidth, 'butterworth-lpf'));
+        gaussFreq.push(computeFilterValue1D(dist, D0 / 2, filterOrder, bandwidth, 'gaussian-lpf'));
+      }
+
+      // Compute 1D Spatial Impulse Responses (Inverse Discrete Fourier Transform of 1D Filter)
+      function compute1DImpulse(freqArray) {
+        const len = freqArray.length;
+        const re = new Float32Array(len);
+        const im = new Float32Array(len);
+
+        // Center shifted spectrum
+        for (let i = 0; i < len; i++) {
+          const shiftIdx = (i + len / 2) % len;
+          re[shiftIdx] = freqArray[i];
+        }
+
+        fft1D(re, im, 1);
+
+        const impulse = [];
+        for (let i = 0; i < len; i++) {
+          const shiftIdx = (i + len / 2) % len;
+          impulseLabels[i] = i - len / 2;
+          impulse.push(re[shiftIdx]);
+        }
+        return impulse;
+      }
+
+      const idealImpulse = compute1DImpulse(idealFreq);
+      const butterImpulse = compute1DImpulse(butterFreq);
+      const gaussImpulse = compute1DImpulse(gaussFreq);
+
+      // Update Chart Datasets
+      chartFreqInstance.data = {
+        labels: freqLabels,
+        datasets: [
+          { label: 'Ideal (Step Cutoff)', data: idealFreq, borderColor: '#f59e0b', borderWidth: 2, pointRadius: 0 },
+          { label: `Butterworth (n=${filterOrder})`, data: butterFreq, borderColor: '#3b82f6', borderWidth: 2, pointRadius: 0 },
+          { label: 'Gaussian (Zero Ringing)', data: gaussFreq, borderColor: '#10b981', borderWidth: 2, pointRadius: 0 }
+        ]
+      };
+      chartFreqInstance.update();
+
+      chartImpulseInstance.data = {
+        labels: impulseLabels,
+        datasets: [
+          { label: 'Ideal PSF (Heavy Sinc Ripples)', data: idealImpulse, borderColor: '#f59e0b', borderWidth: 2, pointRadius: 0 },
+          { label: `Butterworth PSF`, data: butterImpulse, borderColor: '#3b82f6', borderWidth: 2, pointRadius: 0 },
+          { label: 'Gaussian PSF (No Side-lobes)', data: gaussImpulse, borderColor: '#10b981', borderWidth: 2, pointRadius: 0 }
+        ]
+      };
+      chartImpulseInstance.update();
+    }
+
+    // --- Tab 3: Basis Function Renderer ---
+    function renderBasisWave() {
+      const u = parseInt(document.getElementById('slider-u').value);
+      const v = parseInt(document.getElementById('slider-v').value);
+
+      document.getElementById('val-u').textContent = u;
+      document.getElementById('val-v').textContent = v;
+
+      const freqMag = Math.sqrt(u * u + v * v);
+      const wavelength = freqMag === 0 ? 'Infinite' : (N / freqMag).toFixed(1) + ' px';
+      const angle = (Math.atan2(v, u) * 180 / Math.PI).toFixed(1) + '°';
+
+      document.getElementById('val-lambda').textContent = wavelength;
+      document.getElementById('val-theta').textContent = angle;
+
+      // Render 2D Spatial Basis Wave
+      const imgBasis = ctxBasis.createImageData(N, N);
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          const val = 0.5 + 0.5 * Math.cos((2 * Math.PI * (u * x + v * y)) / N);
+          const c = val * 255;
+          const idx = (y * N + x) * 4;
+          imgBasis.data[idx] = c;
+          imgBasis.data[idx + 1] = c;
+          imgBasis.data[idx + 2] = c;
+          imgBasis.data[idx + 3] = 255;
+        }
+      }
+      ctxBasis.putImageData(imgBasis, 0, 0);
+
+      // Render Delta Pair Spectrum
+      const imgFFT = ctxBasisFFT.createImageData(N, N);
+      const cx = N / 2;
+      const cy = N / 2;
+
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          const idx = (y * N + x) * 4;
+          imgFFT.data[idx] = 15;
+          imgFFT.data[idx + 1] = 23;
+          imgFFT.data[idx + 2] = 42;
+          imgFFT.data[idx + 3] = 255;
+        }
+      }
+
+      // Draw symmetric conjugate impulse dots (+u, +v) and (-u, -v)
+      const p1x = (cx + u + N) % N;
+      const p1y = (cy + v + N) % N;
+      const p2x = (cx - u + N) % N;
+      const p2y = (cy - v + N) % N;
+
+      function drawDot(px, py) {
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const x = (px + dx + N) % N;
+            const y = (py + dy + N) % N;
+            const idx = (y * N + x) * 4;
+            imgFFT.data[idx] = 239;     // Amber
+            imgFFT.data[idx + 1] = 68;
+            imgFFT.data[idx + 2] = 68;
+          }
+        }
+      }
+
+      drawDot(p1x, p1y);
+      drawDot(p2x, p2y);
+
+      ctxBasisFFT.putImageData(imgFFT, 0, 0);
+    }
+  </script>
+</body>
+</html>

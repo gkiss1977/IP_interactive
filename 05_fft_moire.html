@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Moiré Fourier Analysis</title>
+    <style>
+        body { margin: 0; background: #111; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; }
+        canvas { width: 800px; height: 500px; background: #000; border: 1px solid #444; margin-top: 20px; }
+        .controls { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: #222; width: 800px; box-sizing: border-box; }
+        .slider-group { display: flex; flex-direction: column; }
+        label { margin-bottom: 5px; font-size: 14px; font-weight: bold; color: #aaa; }
+        span { color: #fff; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <div class="slider-group">
+            <label>Grating 1 Frequency ($f_1$): <span id="f1Val">40</span></label>
+            <input type="range" id="f1" min="10" max="100" step="0.1" value="40">
+        </div>
+        <div class="slider-group">
+            <label>Grating 2 Frequency ($f_2$): <span id="f2Val">42</span></label>
+            <input type="range" id="f2" min="10" max="100" step="0.1" value="42">
+        </div>
+        <div class="slider-group">
+            <label>Grating 2 Rotation: <span id="rVal">0.1</span> rad</label>
+            <input type="range" id="rot" min="0" max="0.5" step="0.01" value="0.05">
+        </div>
+        <div style="font-size: 12px; align-self: end; color: #888;">
+            Beat Frequency $|f_1 - f_2|$ creates the large pattern.
+        </div>
+    </div>
+
+    <canvas id="glCanvas"></canvas>
+
+<script type="x-shader/x-vertex" id="vs">
+    attribute vec2 position;
+    void main() {
+        gl_Position = vec4(position, 0.0, 1.0);
+    }
+</script>
+
+<script type="x-shader/x-fragment" id="fs">
+    precision highp float;
+    uniform vec2 u_resolution;
+    uniform float u_f1;
+    uniform float u_f2;
+    uniform float u_rot;
+
+    void main() {
+        vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+        float aspect = u_resolution.x / u_resolution.y;
+        vec2 p = uv;
+        p.x *= aspect;
+
+        float col = 0.0;
+
+        // Top Left: Grating 1
+        if (uv.y > 0.7) {
+            col = 0.5 + 0.5 * sin(p.x * u_f1);
+        } 
+        // Top Right: Grating 2 (Rotated)
+        else if (uv.y > 0.4) {
+            mat2 r = mat2(cos(u_rot), -sin(u_rot), sin(u_rot), cos(u_rot));
+            vec2 pRot = r * p;
+            col = 0.5 + 0.5 * sin(pRot.x * u_f2);
+        } 
+        // Bottom: The Interference (Multiplied)
+        else {
+            float g1 = 0.5 + 0.5 * sin(p.x * u_f1);
+            mat2 r = mat2(cos(u_rot), -sin(u_rot), sin(u_rot), cos(u_rot));
+            vec2 pRot = r * p;
+            float g2 = 0.5 + 0.5 * sin(pRot.x * u_f2);
+            
+            // Multiplication in space is convolution in frequency
+            col = g1 * g2;
+            
+            // Contrast boost to see the "Beating" frequency clearly
+            col = pow(col, 0.8) * 1.5; 
+        }
+
+        // Draw dividers
+        if (abs(uv.y - 0.7) < 0.005 || abs(uv.y - 0.4) < 0.005) col = 0.5;
+
+        gl_FragColor = vec4(vec3(col), 1.0);
+    }
+</script>
+
+<script>
+    const canvas = document.getElementById('glCanvas');
+    const gl = canvas.getContext('webgl');
+
+    const program = gl.createProgram();
+    function createShader(gl, type, source) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, source);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+            console.error(gl.getShaderInfoLog(s));
+        }
+        return s;
+    }
+
+    const vsSource = document.getElementById('vs').text;
+    const fsSource = document.getElementById('fs').text;
+    const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    gl.useProgram(program);
+
+    const vertices = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const pos = gl.getAttribLocation(program, "position");
+    gl.enableVertexAttribArray(pos);
+    gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+    const uRes = gl.getUniformLocation(program, "u_resolution");
+    const uF1 = gl.getUniformLocation(program, "u_f1");
+    const uF2 = gl.getUniformLocation(program, "u_f2");
+    const uRot = gl.getUniformLocation(program, "u_rot");
+
+    const inputs = {
+        f1: document.getElementById('f1'),
+        f2: document.getElementById('f2'),
+        rot: document.getElementById('rot')
+    };
+
+    const displays = {
+        f1: document.getElementById('f1Val'),
+        f2: document.getElementById('f2Val'),
+        rot: document.getElementById('rVal')
+    };
+
+    function render() {
+        canvas.width = 800;
+        canvas.height = 500;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        
+        gl.uniform2f(uRes, canvas.width, canvas.height);
+        gl.uniform1f(uF1, parseFloat(inputs.f1.value));
+        gl.uniform1f(uF2, parseFloat(inputs.f2.value));
+        gl.uniform1f(uRot, parseFloat(inputs.rot.value));
+
+        displays.f1.innerText = inputs.f1.value;
+        displays.f2.innerText = inputs.f2.value;
+        displays.rot.innerText = inputs.rot.value;
+        
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        requestAnimationFrame(render);
+    }
+    render();
+</script>
+</body>
+</html>

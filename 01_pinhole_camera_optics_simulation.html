@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Pinhole Camera & Ray Tracing Optics Simulation</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom scrollbar for dark control panel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 overflow-hidden h-screen w-screen flex flex-col md:flex-row">
+
+    <!-- Control Panel / Sidebar -->
+    <div class="w-full md:w-80 lg:w-96 bg-gray-900 border-r border-gray-800 flex flex-col z-10 flex-shrink-0 h-1/2 md:h-full overflow-y-auto">
+        <!-- Title Header -->
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/80 backdrop-blur sticky top-0 z-20">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg">
+                    <i class="fa-solid fa-camera text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-white leading-tight">Pinhole Camera</h1>
+                    <p class="text-xs text-gray-400">Optics & Light Ray Simulator</p>
+                </div>
+            </div>
+            <button id="reset-btn" class="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2.5 py-1.5 rounded transition flex items-center gap-1.5" title="Reset View & Parameters">
+                <i class="fa-solid fa-rotate-left"></i> Reset
+            </button>
+        </div>
+
+        <!-- Controls Form -->
+        <div class="p-4 space-y-6 flex-1">
+
+            <!-- Object Parameters -->
+            <div class="space-y-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+                    <i class="fa-solid fa-cube"></i> Target Object
+                </h2>
+                
+                <!-- Object Selector -->
+                <div>
+                    <label class="text-xs text-gray-300 block mb-1">Object Shape</label>
+                    <select id="object-type" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                        <option value="tree">3D Pine Tree</option>
+                        <option value="letter">Letter "F" (Asymmetric)</option>
+                        <option value="candle">Lighted Candle</option>
+                        <option value="house">Simple House</option>
+                    </select>
+                </div>
+
+                <!-- Distance Control -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-300">Object Distance ($d_o$)</span>
+                        <span id="val-distance" class="font-mono text-indigo-400">12.0 m</span>
+                    </div>
+                    <input type="range" id="param-distance" min="6" max="25" step="0.5" value="12" class="w-full accent-indigo-500 bg-gray-800 rounded-lg h-2 cursor-pointer">
+                </div>
+
+                <!-- Height Control -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-300">Object Height ($h_o$)</span>
+                        <span id="val-height" class="font-mono text-indigo-400">3.5 m</span>
+                    </div>
+                    <input type="range" id="param-height" min="1.5" max="6.0" step="0.2" value="3.5" class="w-full accent-indigo-500 bg-gray-800 rounded-lg h-2 cursor-pointer">
+                </div>
+            </div>
+
+            <hr class="border-gray-800">
+
+            <!-- Camera Parameters -->
+            <div class="space-y-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders"></i> Camera Obscura Settings
+                </h2>
+
+                <!-- Focal Length / Box Depth -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-300">Focal Length / Depth ($d_i$)</span>
+                        <span id="val-focal" class="font-mono text-emerald-400">4.0 m</span>
+                    </div>
+                    <input type="range" id="param-focal" min="1.5" max="8.0" step="0.2" value="4.0" class="w-full accent-emerald-500 bg-gray-800 rounded-lg h-2 cursor-pointer">
+                </div>
+
+                <!-- Aperture Diameter -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-gray-300">Aperture Size ($D$)</span>
+                        <span id="val-aperture" class="font-mono text-emerald-400">Medium</span>
+                    </div>
+                    <input type="range" id="param-aperture" min="0.05" max="0.6" step="0.05" value="0.2" class="w-full accent-emerald-500 bg-gray-800 rounded-lg h-2 cursor-pointer">
+                    <p class="text-[10px] text-gray-500 mt-1">Larger aperture = brighter image but blurrier (more ray scatter).</p>
+                </div>
+            </div>
+
+            <hr class="border-gray-800">
+
+            <!-- Visualization Options -->
+            <div class="space-y-3">
+                <h2 class="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                    <i class="fa-solid fa-eye"></i> Visual Aids
+                </h2>
+
+                <!-- Toggle Rays -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-300">Show Light Rays</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-rays" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+
+                <!-- Toggle Transparency/Wireframe -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-300">Transparent Camera Body</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-box-transparent" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+
+                <!-- Toggle Inverted View 2D Overlay -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-300">Screen View Overlay</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-overlay" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+            </div>
+
+            <hr class="border-gray-800">
+
+            <!-- Real-time Physics Calculations -->
+            <div class="bg-gray-950/60 p-3 rounded-lg border border-gray-800 space-y-2">
+                <div class="text-xs font-semibold text-gray-300 mb-1 flex items-center gap-1.5">
+                    <i class="fa-solid fa-calculator text-indigo-400"></i> Optics Calculations
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="bg-gray-900 p-2 rounded border border-gray-800">
+                        <span class="text-gray-400 block">Magnification ($M$)</span>
+                        <span id="calc-mag" class="font-mono text-indigo-300 font-medium">-0.33x</span>
+                    </div>
+                    <div class="bg-gray-900 p-2 rounded border border-gray-800">
+                        <span class="text-gray-400 block">Image Height ($h_i$)</span>
+                        <span id="calc-height" class="font-mono text-indigo-300 font-medium">1.17 m</span>
+                    </div>
+                </div>
+                <div class="text-[10px] text-gray-400 italic pt-1 border-t border-gray-800/80">
+                    Formula: $M = - \frac{d_i}{d_o} = \frac{h_i}{h_o}$
+                </div>
+            </div>
+
+            <!-- Educational Explanation Box -->
+            <div class="bg-indigo-950/30 border border-indigo-900/50 p-3 rounded-lg text-xs space-y-2">
+                <div class="font-semibold text-indigo-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-lightbulb text-amber-400"></i> How Pinhole Optics Work
+                </div>
+                <p class="text-gray-300 leading-relaxed text-[11px]">
+                    Light travels in straight lines (rectilinear propagation). Rays emitting from the top of the object cross through the central pinhole and hit the bottom of the projection screen, creating an <strong>inverted</strong> and <strong>horizontally flipped</strong> image.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main 3D Viewport Area -->
+    <div class="relative flex-1 bg-gray-950 h-1/2 md:h-full w-full overflow-hidden">
+        
+        <!-- Canvas Container -->
+        <div id="canvas-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+        <!-- 2D Image Screen Overlay (Simulating Back Projection Glass View) -->
+        <div id="screen-overlay" class="absolute top-4 right-4 bg-gray-900/90 border border-gray-700/80 backdrop-blur-md rounded-xl p-3 shadow-2xl z-20 pointer-events-none transition-opacity duration-300 w-44 md:w-52">
+            <div class="text-[11px] font-semibold text-gray-300 mb-2 flex items-center justify-between">
+                <span><i class="fa-solid fa-display text-emerald-400 mr-1"></i> Screen Projection</span>
+                <span class="text-[9px] bg-red-900/50 text-red-300 px-1.5 py-0.5 rounded border border-red-700/50 uppercase font-mono">Inverted</span>
+            </div>
+            <div class="relative w-full aspect-square bg-black/90 rounded-lg border border-gray-800 overflow-hidden flex items-center justify-center">
+                <!-- Grid overlay for screen canvas -->
+                <div class="absolute inset-0 bg-[radial-gradient(#374151_1px,transparent_1px)] [background-size:12px_12px] opacity-30"></div>
+                <!-- 2D Canvas for preview -->
+                <canvas id="overlay-canvas" class="w-full h-full relative z-10"></canvas>
+            </div>
+            <div class="text-[9px] text-gray-400 text-center mt-1.5">
+                Observed image is inverted ($180^\circ$)
+            </div>
+        </div>
+
+        <!-- On-Screen Instructions Overlay -->
+        <div class="absolute bottom-4 left-4 pointer-events-none hidden sm:block bg-gray-900/70 backdrop-blur border border-gray-800 px-3 py-2 rounded-lg text-xs text-gray-400">
+            <span class="font-medium text-gray-200"><i class="fa-solid fa-arrows-spin mr-1"></i> Navigation:</span>
+            Rotate: Left Click + Drag | Pan: Right Click + Drag | Zoom: Scroll
+        </div>
+    </div>
+
+    <script>
+        // State management
+        const state = {
+            objectType: 'tree',
+            objectDistance: 12.0,
+            objectHeight: 3.5,
+            focalLength: 4.0,
+            apertureSize: 0.2,
+            showRays: true,
+            boxTransparent: true,
+            showOverlay: true
+        };
+
+        // DOM Elements
+        const container = document.getElementById('canvas-container');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+        
+        // Input Controls
+        const elObjectType = document.getElementById('object-type');
+        const elDistance = document.getElementById('param-distance');
+        const elHeight = document.getElementById('param-height');
+        const elFocal = document.getElementById('param-focal');
+        const elAperture = document.getElementById('param-aperture');
+        const elToggleRays = document.getElementById('toggle-rays');
+        const elToggleBoxTransparent = document.getElementById('toggle-box-transparent');
+        const elToggleOverlay = document.getElementById('toggle-overlay');
+        const elResetBtn = document.getElementById('reset-btn');
+
+        // Text Display Outputs
+        const txtDistance = document.getElementById('val-distance');
+        const txtHeight = document.getElementById('val-height');
+        const txtFocal = document.getElementById('val-focal');
+        const txtAperture = document.getElementById('val-aperture');
+        const calcMag = document.getElementById('calc-mag');
+        const calcHeight = document.getElementById('calc-height');
+        const screenOverlay = document.getElementById('screen-overlay');
+
+        // Three.js Scene Setup Variables
+        let scene, camera, renderer, controls;
+        let targetObjectGroup, cameraBoxGroup, raysGroup;
+        let groundGlassMesh, pinholeFrontMesh, pinholeHoleMesh;
+        let projectionTexture, projectionMaterial, projectionCanvas, projectionCtx;
+
+        // Colors
+        const COLOR_OBJECT = 0x10b981;  // Emerald green
+        const COLOR_ACCENT = 0xf59e0b;  // Amber light
+        const COLOR_RAY_TOP = 0xef4444; // Red top ray
+        const COLOR_RAY_MID = 0x3b82f6; // Blue mid ray
+        const COLOR_RAY_BOT = 0x10b981; // Green bot ray
+        const COLOR_BOX = 0x374151;     // Dark steel blue-gray
+
+        function initThree() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x030712); // Tailwind gray-950
+            scene.fog = new THREE.FogExp2(0x030712, 0.015);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(12, 8, 18);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 + 0.1; // Slightly below ground level
+            controls.target.set(0, 1.5, 0);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(15, 25, 15);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 50;
+            scene.add(dirLight);
+
+            const pointLight = new THREE.PointLight(0x818cf8, 1.2, 30);
+            pointLight.position.set(-10, 10, -5);
+            scene.add(pointLight);
+
+            // Grid & Ground Plane
+            const grid = new THREE.GridHelper(60, 60, 0x374151, 0x1f2937);
+            grid.position.y = -0.01;
+            scene.add(grid);
+
+            // Groups
+            targetObjectGroup = new THREE.Group();
+            cameraBoxGroup = new THREE.Group();
+            raysGroup = new THREE.Group();
+
+            scene.add(targetObjectGroup);
+            scene.add(cameraBoxGroup);
+            scene.add(raysGroup);
+
+            // Create Canvas for Projected Texture on Back Screen
+            projectionCanvas = document.createElement('canvas');
+            projectionCanvas.width = 512;
+            projectionCanvas.height = 512;
+            projectionCtx = projectionCanvas.getContext('2d');
+            projectionTexture = new THREE.CanvasTexture(projectionCanvas);
+
+            // Build Scene Components
+            buildCameraBox();
+            updateTargetObject();
+            updateSimulation();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            setupUIEventListeners();
+        }
+
+        function buildCameraBox() {
+            // Clear existing camera group
+            while(cameraBoxGroup.children.length > 0) { 
+                cameraBoxGroup.remove(cameraBoxGroup.children[0]); 
+            }
+
+            const boxWidth = 3.5;
+            const boxHeight = 3.5;
+            const boxDepth = state.focalLength;
+
+            // Camera Body Group sits at x = 0 (Front pinhole at x = 0)
+            // Back ground glass screen will be at x = +boxDepth
+            
+            // 1. Front Plate with hole
+            const frontPlateShape = new THREE.Shape();
+            frontPlateShape.moveTo(-boxWidth/2, -boxHeight/2);
+            frontPlateShape.lineTo(boxWidth/2, -boxHeight/2);
+            frontPlateShape.lineTo(boxWidth/2, boxHeight/2);
+            frontPlateShape.lineTo(-boxWidth/2, boxHeight/2);
+            frontPlateShape.lineTo(-boxWidth/2, -boxHeight/2);
+
+            // Hole in front plate
+            const apertureRadius = state.apertureSize;
+            const holePath = new THREE.Path();
+            holePath.absarc(0, 0, apertureRadius, 0, Math.PI * 2, true);
+            frontPlateShape.holes.push(holePath);
+
+            const frontGeo = new THREE.ShapeGeometry(frontPlateShape);
+            const frontMat = new THREE.MeshStandardMaterial({ 
+                color: 0x1f2937, 
+                side: THREE.DoubleSide, 
+                roughness: 0.5,
+                metalness: 0.8
+            });
+            pinholeFrontMesh = new THREE.Mesh(frontGeo, frontMat);
+            pinholeFrontMesh.rotation.y = Math.PI / 2; // Face along X axis
+            pinholeFrontMesh.position.set(0, boxHeight/2, 0);
+            cameraBoxGroup.add(pinholeFrontMesh);
+
+            // Gold Ring highlight around Pinhole
+            const holeRingGeo = new THREE.RingGeometry(apertureRadius, apertureRadius + 0.05, 32);
+            const holeRingMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide });
+            pinholeHoleMesh = new THREE.Mesh(holeRingGeo, holeRingMat);
+            pinholeHoleMesh.rotation.y = Math.PI / 2;
+            pinholeHoleMesh.position.set(0.001, boxHeight/2, 0);
+            cameraBoxGroup.add(pinholeHoleMesh);
+
+            // 2. Camera Box Body Walls (Side, Top, Bottom)
+            const wallMat = new THREE.MeshStandardMaterial({
+                color: COLOR_BOX,
+                transparent: true,
+                opacity: state.boxTransparent ? 0.35 : 0.95,
+                wireframe: false,
+                side: THREE.DoubleSide,
+                roughness: 0.7
+            });
+
+            // Outer Box Body Geometry (Open front and back)
+            const boxBodyGeo = new THREE.BufferGeometry();
+            // Create walls extending from x = 0 to x = boxDepth
+            const vertices = new Float32Array([
+                // Top
+                0, boxHeight, -boxWidth/2,   boxDepth, boxHeight, -boxWidth/2,   boxDepth, boxHeight, boxWidth/2,
+                0, boxHeight, -boxWidth/2,   boxDepth, boxHeight, boxWidth/2,    0, boxHeight, boxWidth/2,
+                // Bottom
+                0, 0, -boxWidth/2,           0, 0, boxWidth/2,                   boxDepth, 0, boxWidth/2,
+                0, 0, -boxWidth/2,           boxDepth, 0, boxWidth/2,            boxDepth, 0, -boxWidth/2,
+                // Left (-Z)
+                0, 0, -boxWidth/2,           boxDepth, 0, -boxWidth/2,           boxDepth, boxHeight, -boxWidth/2,
+                0, 0, -boxWidth/2,           boxDepth, boxHeight, -boxWidth/2,   0, boxHeight, -boxWidth/2,
+                // Right (+Z)
+                0, 0, boxWidth/2,            0, boxHeight, boxWidth/2,           boxDepth, boxHeight, boxWidth/2,
+                0, 0, boxWidth/2,            boxDepth, boxHeight, boxWidth/2,    boxDepth, 0, boxWidth/2,
+            ]);
+            boxBodyGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            boxBodyGeo.computeVertexNormals();
+            const boxMesh = new THREE.Mesh(boxBodyGeo, wallMat);
+            cameraBoxGroup.add(boxMesh);
+
+            // Wireframe Outline for clean technical appearance
+            const wireframeGeo = new THREE.WireframeGeometry(boxBodyGeo);
+            const wireframeMat = new THREE.LineBasicMaterial({ color: 0x6b7280, transparent: true, opacity: 0.6 });
+            const wireframe = new THREE.LineSegments(wireframeGeo, wireframeMat);
+            cameraBoxGroup.add(wireframe);
+
+            // 3. Ground Glass Projection Screen at Back (x = boxDepth)
+            const screenGeo = new THREE.PlaneGeometry(boxWidth - 0.1, boxHeight - 0.1);
+            projectionMaterial = new THREE.MeshBasicMaterial({
+                map: projectionTexture,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.95
+            });
+            groundGlassMesh = new THREE.Mesh(screenGeo, projectionMaterial);
+            groundGlassMesh.rotation.y = -Math.PI / 2; // Facing inside the box towards pinhole
+            groundGlassMesh.position.set(boxDepth - 0.01, boxHeight/2, 0);
+            cameraBoxGroup.add(groundGlassMesh);
+
+            // Translucent screen frame back cover border
+            const screenFrameGeo = new THREE.PlaneGeometry(boxWidth, boxHeight);
+            const screenFrameMat = new THREE.MeshStandardMaterial({
+                color: 0x111827,
+                roughness: 0.2,
+                metalness: 0.5,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide
+            });
+            const screenFrame = new THREE.Mesh(screenFrameGeo, screenFrameMat);
+            screenFrame.rotation.y = Math.PI / 2;
+            screenFrame.position.set(boxDepth, boxHeight/2, 0);
+            cameraBoxGroup.add(screenFrame);
+        }
+
+        function updateTargetObject() {
+            while(targetObjectGroup.children.length > 0) { 
+                targetObjectGroup.remove(targetObjectGroup.children[0]); 
+            }
+
+            const h = state.objectHeight;
+            const xPos = -state.objectDistance; // Object sits at negative X
+
+            targetObjectGroup.position.set(xPos, 0, 0);
+
+            if (state.objectType === 'tree') {
+                // Trunk
+                const trunkGeo = new THREE.CylinderGeometry(h * 0.08, h * 0.12, h * 0.3, 12);
+                const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                trunk.position.y = h * 0.15;
+                trunk.castShadow = true;
+                targetObjectGroup.add(trunk);
+
+                // Foliage Layers (Pine Cone Layers)
+                const foliageMat = new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.5, flatShading: true });
+                const layers = 3;
+                for(let i = 0; i < layers; i++) {
+                    const layerH = h * 0.35;
+                    const radius = (h * 0.3) * (1 - i * 0.25);
+                    const coneGeo = new THREE.ConeGeometry(radius, layerH, 10);
+                    const cone = new THREE.Mesh(coneGeo, foliageMat);
+                    cone.position.y = h * 0.3 + i * (h * 0.22);
+                    cone.castShadow = true;
+                    targetObjectGroup.add(cone);
+                }
+
+                // Bright Red Star/Tip for distinct top ray tracking
+                const tipGeo = new THREE.SphereGeometry(h * 0.06, 12, 12);
+                const tipMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+                const tip = new THREE.Mesh(tipGeo, tipMat);
+                tip.position.y = h;
+                targetObjectGroup.add(tip);
+
+            } else if (state.objectType === 'letter') {
+                // 3D Letter "F" for asymmetry visualization
+                const mat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.4, metalness: 0.2 });
+                
+                // Vertical Stem
+                const stemGeo = new THREE.BoxGeometry(h * 0.15, h, h * 0.15);
+                const stem = new THREE.Mesh(stemGeo, mat);
+                stem.position.y = h / 2;
+                targetObjectGroup.add(stem);
+
+                // Top Bar
+                const topBarGeo = new THREE.BoxGeometry(h * 0.15, h * 0.15, h * 0.5);
+                const topBar = new THREE.Mesh(topBarGeo, mat);
+                topBar.position.set(0, h * 0.925, h * 0.175);
+                targetObjectGroup.add(topBar);
+
+                // Middle Bar
+                const midBarGeo = new THREE.BoxGeometry(h * 0.15, h * 0.12, h * 0.35);
+                const midBar = new THREE.Mesh(midBarGeo, mat);
+                midBar.position.set(0, h * 0.55, h * 0.1);
+                targetObjectGroup.add(midBar);
+
+                // Top Red Indicator Sphere
+                const tipGeo = new THREE.SphereGeometry(h * 0.05, 12, 12);
+                const tipMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+                const tip = new THREE.Mesh(tipGeo, tipMat);
+                tip.position.set(0, h, 0);
+                targetObjectGroup.add(tip);
+
+            } else if (state.objectType === 'candle') {
+                // Candle Body
+                const bodyGeo = new THREE.CylinderGeometry(h * 0.12, h * 0.12, h * 0.8, 16);
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf3f4f6, roughness: 0.3 });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.y = h * 0.4;
+                targetObjectGroup.add(body);
+
+                // Wick
+                const wickGeo = new THREE.CylinderGeometry(0.02, 0.02, h * 0.08, 8);
+                const wickMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+                const wick = new THREE.Mesh(wickGeo, wickMat);
+                wick.position.y = h * 0.84;
+                targetObjectGroup.add(wick);
+
+                // Glowing Flame
+                const flameGeo = new THREE.ConeGeometry(h * 0.08, h * 0.2, 12);
+                const flameMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+                const flame = new THREE.Mesh(flameGeo, flameMat);
+                flame.position.y = h * 0.9 + h * 0.05;
+                targetObjectGroup.add(flame);
+
+                // Inner Flame Core
+                const coreGeo = new THREE.ConeGeometry(h * 0.04, h * 0.1, 12);
+                const coreMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+                const core = new THREE.Mesh(coreGeo, coreMat);
+                core.position.y = h * 0.88 + h * 0.05;
+                targetObjectGroup.add(core);
+
+            } else if (state.objectType === 'house') {
+                // House Base
+                const baseGeo = new THREE.BoxGeometry(h * 0.6, h * 0.5, h * 0.6);
+                const baseMat = new THREE.MeshStandardMaterial({ color: 0xe0e7ff, roughness: 0.6 });
+                const base = new THREE.Mesh(baseGeo, baseMat);
+                base.position.y = h * 0.25;
+                targetObjectGroup.add(base);
+
+                // Roof
+                const roofGeo = new THREE.ConeGeometry(h * 0.5, h * 0.4, 4);
+                const roofMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 });
+                const roof = new THREE.Mesh(roofGeo, roofMat);
+                roof.rotation.y = Math.PI / 4;
+                roof.position.y = h * 0.7;
+                targetObjectGroup.add(roof);
+
+                // Door
+                const doorGeo = new THREE.BoxGeometry(h * 0.02, h * 0.25, h * 0.15);
+                const doorMat = new THREE.MeshStandardMaterial({ color: 0x78350f });
+                const door = new THREE.Mesh(doorGeo, doorMat);
+                door.position.set(h * 0.3, h * 0.125, 0);
+                targetObjectGroup.add(door);
+
+                // Chimney Top Tip
+                const tipGeo = new THREE.SphereGeometry(h * 0.05, 12, 12);
+                const tipMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+                const tip = new THREE.Mesh(tipGeo, tipMat);
+                tip.position.set(0, h, 0);
+                targetObjectGroup.add(tip);
+            }
+        }
+
+        function updateRays() {
+            while(raysGroup.children.length > 0) { 
+                raysGroup.remove(raysGroup.children[0]); 
+            }
+
+            if (!state.showRays) return;
+
+            const do_dist = state.objectDistance; // Distance along negative X
+            const di_dist = state.focalLength;     // Distance inside camera along positive X
+            const ho = state.objectHeight;
+            const apertureR = state.apertureSize;
+
+            // Key points on Object:
+            // Top point: (-do_dist, ho, 0)
+            // Mid point: (-do_dist, ho / 2, 0)
+            // Bottom point: (-do_dist, 0, 0)
+
+            const objectPoints = [
+                { pos: new THREE.Vector3(-do_dist, ho, 0), color: COLOR_RAY_TOP },
+                { pos: new THREE.Vector3(-do_dist, ho / 2, 0), color: COLOR_RAY_MID },
+                { pos: new THREE.Vector3(-do_dist, 0, 0), color: COLOR_RAY_BOT }
+            ];
+
+            // For aperture dispersion simulation (show multiple rays passing through aperture edges)
+            const numApertureSamples = apertureR > 0.2 ? 5 : 3;
+
+            objectPoints.forEach(pt => {
+                for (let i = 0; i < numApertureSamples; i++) {
+                    let offsetZ = 0;
+                    let offsetY = 0;
+
+                    if (i > 0) {
+                        const angle = (i / (numApertureSamples - 1)) * Math.PI * 2;
+                        offsetY = Math.sin(angle) * (apertureR * 0.8);
+                        offsetZ = Math.cos(angle) * (apertureR * 0.8);
+                    }
+
+                    // Pinhole contact point
+                    const pinholePoint = new THREE.Vector3(0, 1.75 + offsetY, offsetZ); // Camera center height = 1.75m
+
+                    // Vector direction from object to pinhole
+                    const dir = new THREE.Vector3().subVectors(pinholePoint, pt.pos).normalize();
+
+                    // Projection screen plane intersection at x = di_dist
+                    const t = (di_dist - pt.pos.x) / dir.x;
+                    const screenHitPoint = new THREE.Vector3().copy(pt.pos).add(dir.multiplyScalar(t));
+
+                    // Create Ray Line
+                    const points = [pt.pos, pinholePoint, screenHitPoint];
+                    const rayGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    const rayMat = new THREE.LineBasicMaterial({
+                        color: pt.color,
+                        transparent: true,
+                        opacity: i === 0 ? 0.9 : 0.4,
+                        linewidth: i === 0 ? 2 : 1
+                    });
+                    const rayLine = new THREE.Line(rayGeo, rayMat);
+                    raysGroup.add(rayLine);
+
+                    // Glowing point on back screen projection plane
+                    const dotGeo = new THREE.SphereGeometry(0.04 + apertureR * 0.1, 8, 8);
+                    const dotMat = new THREE.MeshBasicMaterial({ color: pt.color, transparent: true, opacity: 0.8 });
+                    const dot = new THREE.Mesh(dotGeo, dotMat);
+                    dot.position.copy(screenHitPoint);
+                    raysGroup.add(dot);
+                }
+            });
+        }
+
+        function updateProjectionTexture() {
+            if (!projectionCtx) return;
+
+            const w = projectionCanvas.width;
+            const h = projectionCanvas.height;
+
+            // Clear Background
+            projectionCtx.fillStyle = '#050b14';
+            projectionCtx.fillRect(0, 0, w, h);
+
+            // Draw Subtle Grid on ground glass
+            projectionCtx.strokeStyle = '#1f2937';
+            projectionCtx.lineWidth = 1;
+            const gridStep = 32;
+            for(let x=0; x<w; x+=gridStep) {
+                projectionCtx.beginPath(); projectionCtx.moveTo(x,0); projectionCtx.lineTo(x,h); projectionCtx.stroke();
+            }
+            for(let y=0; y<h; y+=gridStep) {
+                projectionCtx.beginPath(); projectionCtx.moveTo(0,y); projectionCtx.lineTo(w,y); projectionCtx.stroke();
+            }
+
+            // Magnification M = - di / do
+            const mag = state.focalLength / state.objectDistance;
+            const blurRadius = state.apertureSize * 18.0; // Blur increases with aperture size
+
+            projectionCtx.save();
+            // Center origin in texture
+            projectionCtx.translate(w / 2, h / 2);
+
+            // Pinhole Camera Inverts Image 180 degrees (Both Vertical & Horizontal Flip)
+            projectionCtx.rotate(Math.PI);
+
+            // Scale according to optical magnification
+            const scaleFactor = mag * 1.4;
+            projectionCtx.scale(scaleFactor, scaleFactor);
+
+            // Apply Aperture Blur (Simulating loss of sharpness with larger aperture)
+            if (blurRadius > 1) {
+                projectionCtx.filter = `blur(${blurRadius}px)`;
+            } else {
+                projectionCtx.filter = 'none';
+            }
+
+            // Draw Object Silhouette on Screen
+            draw2DObject(projectionCtx, state.objectType, state.objectHeight);
+
+            projectionCtx.restore();
+
+            // Update Three.js Texture
+            projectionTexture.needsUpdate = true;
+
+            // Also render to the UI Overlay Canvas
+            renderOverlayCanvas();
+        }
+
+        function draw2DObject(ctx, type, height) {
+            const size = height * 35; // Scale height for canvas drawing
+
+            if (type === 'tree') {
+                // Trunk
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(-size*0.08, 0, size*0.16, size*0.3);
+
+                // Foliage
+                ctx.fillStyle = '#10b981';
+                for(let i=0; i<3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -size*(0.4 + i*0.25));
+                    ctx.lineTo(-size*(0.35 - i*0.08), -size*(0.15 + i*0.2));
+                    ctx.lineTo(size*(0.35 - i*0.08), -size*(0.15 + i*0.2));
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                // Top Red Tip
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(0, -size, size*0.08, 0, Math.PI*2);
+                ctx.fill();
+
+            } else if (type === 'letter') {
+                ctx.fillStyle = '#3b82f6';
+                // Vertical
+                ctx.fillRect(-size*0.2, -size, size*0.12, size);
+                // Top bar
+                ctx.fillRect(-size*0.2, -size, size*0.4, size*0.15);
+                // Mid bar
+                ctx.fillRect(-size*0.2, -size*0.55, size*0.3, size*0.12);
+
+                // Top Red Tip
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(-size*0.14, -size, size*0.08, 0, Math.PI*2);
+                ctx.fill();
+
+            } else if (type === 'candle') {
+                // Body
+                ctx.fillStyle = '#e5e7eb';
+                ctx.fillRect(-size*0.12, -size*0.8, size*0.24, size*0.8);
+                // Flame
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.moveTo(0, -size*1.1);
+                ctx.quadraticCurveTo(-size*0.1, -size*0.9, 0, -size*0.8);
+                ctx.quadraticCurveTo(size*0.1, -size*0.9, 0, -size*1.1);
+                ctx.fill();
+                // Flame core
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(0, -size*0.92, size*0.04, 0, Math.PI*2);
+                ctx.fill();
+
+            } else if (type === 'house') {
+                // Base
+                ctx.fillStyle = '#818cf8';
+                ctx.fillRect(-size*0.3, -size*0.5, size*0.6, size*0.5);
+                // Roof
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.moveTo(0, -size*0.95);
+                ctx.lineTo(-size*0.38, -size*0.5);
+                ctx.lineTo(size*0.38, -size*0.5);
+                ctx.closePath();
+                ctx.fill();
+                // Door
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(-size*0.08, -size*0.25, size*0.16, size*0.25);
+
+                // Chimney/Tip
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(0, -size, size*0.08, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        function renderOverlayCanvas() {
+            if (!state.showOverlay) return;
+
+            overlayCanvas.width = 200;
+            overlayCanvas.height = 200;
+
+            overlayCtx.clearRect(0, 0, 200, 200);
+            
+            // Draw Texture image onto Overlay Canvas
+            overlayCtx.drawImage(projectionCanvas, 0, 0, 200, 200);
+
+            // Crosshair overlay
+            overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            overlayCtx.lineWidth = 1;
+            overlayCtx.beginPath();
+            overlayCtx.moveTo(100, 0); overlayCtx.lineTo(100, 200);
+            overlayCtx.moveTo(0, 100); overlayCtx.lineTo(200, 100);
+            overlayCtx.stroke();
+        }
+
+        function updateSimulation() {
+            // Recalculate optical statistics
+            const mag = - (state.focalLength / state.objectDistance);
+            const imageHeight = Math.abs(mag * state.objectHeight);
+
+            calcMag.textContent = `${mag.toFixed(2)}x`;
+            calcHeight.textContent = `${imageHeight.toFixed(2)} m`;
+
+            // Update Label Text Displays
+            txtDistance.textContent = `${state.objectDistance.toFixed(1)} m`;
+            txtHeight.textContent = `${state.objectHeight.toFixed(1)} m`;
+            txtFocal.textContent = `${state.focalLength.toFixed(1)} m`;
+
+            // Aperture description label
+            let apertureText = "Medium";
+            if (state.apertureSize <= 0.1) apertureText = "Pinhole (Sharp, Dim)";
+            else if (state.apertureSize >= 0.4) apertureText = "Large (Blurry, Bright)";
+            txtAperture.textContent = `${apertureText} (${state.apertureSize.toFixed(2)}m)`;
+
+            // Rebuild/Update 3D Elements
+            buildCameraBox();
+            updateTargetObject();
+            updateRays();
+            updateProjectionTexture();
+        }
+
+        function setupUIEventListeners() {
+            elObjectType.addEventListener('change', (e) => {
+                state.objectType = e.target.value;
+                updateSimulation();
+            });
+
+            elDistance.addEventListener('input', (e) => {
+                state.objectDistance = parseFloat(e.target.value);
+                updateSimulation();
+            });
+
+            elHeight.addEventListener('input', (e) => {
+                state.objectHeight = parseFloat(e.target.value);
+                updateSimulation();
+            });
+
+            elFocal.addEventListener('input', (e) => {
+                state.focalLength = parseFloat(e.target.value);
+                updateSimulation();
+            });
+
+            elAperture.addEventListener('input', (e) => {
+                state.apertureSize = parseFloat(e.target.value);
+                updateSimulation();
+            });
+
+            elToggleRays.addEventListener('change', (e) => {
+                state.showRays = e.target.checked;
+                updateRays();
+            });
+
+            elToggleBoxTransparent.addEventListener('change', (e) => {
+                state.boxTransparent = e.target.checked;
+                buildCameraBox();
+            });
+
+            elToggleOverlay.addEventListener('change', (e) => {
+                state.showOverlay = e.target.checked;
+                screenOverlay.style.opacity = state.showOverlay ? '1' : '0';
+                screenOverlay.style.pointerEvents = state.showOverlay ? 'auto' : 'none';
+            });
+
+            elResetBtn.addEventListener('click', () => {
+                state.objectType = 'tree';
+                state.objectDistance = 12.0;
+                state.objectHeight = 3.5;
+                state.focalLength = 4.0;
+                state.apertureSize = 0.2;
+                state.showRays = true;
+                state.boxTransparent = true;
+                state.showOverlay = true;
+
+                // Sync inputs
+                elObjectType.value = 'tree';
+                elDistance.value = '12';
+                elHeight.value = '3.5';
+                elFocal.value = '4';
+                elAperture.value = '0.2';
+                elToggleRays.checked = true;
+                elToggleBoxTransparent.checked = true;
+                elToggleOverlay.checked = true;
+
+                screenOverlay.style.opacity = '1';
+
+                // Reset Camera Viewpoint
+                camera.position.set(12, 8, 18);
+                controls.target.set(0, 1.5, 0);
+
+                updateSimulation();
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Subtle rotation or animation of target object (e.g. candle flame flicker)
+            if (state.objectType === 'candle' && targetObjectGroup.children[2]) {
+                targetObjectGroup.children[2].scale.x = 1 + Math.sin(Date.now() * 0.01) * 0.1;
+                targetObjectGroup.children[2].scale.z = 1 + Math.cos(Date.now() * 0.015) * 0.1;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            initThree();
+            animate();
+        };
+    </script>
+</body>
+</html>
